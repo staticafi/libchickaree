@@ -92,9 +92,13 @@ Path  find_path(
         std::uint32_t const  target_function,
         std::uint32_t const  target_basic_block,
         sala::NavigationGraph const&  graph,
-        PathTree&  tree
+        PathTree&  tree,
+        double const  timeout_seconds,
+        std::size_t const  max_memory_bytes
         )
 {
+    std::chrono::system_clock::time_point const  start_time_point = std::chrono::system_clock::now();
+
     std::uint32_t const  target_graph_node_index{ graph.bb_entry(target_function, target_basic_block) };
     std::priority_queue<QueueRecord>  queue;
     queue.push(QueueRecord{
@@ -104,6 +108,13 @@ Path  find_path(
     });
     do
     {
+        double const num_passed_seconds = std::chrono::duration<double>(std::chrono::system_clock::now() - start_time_point).count();
+        if (num_passed_seconds > timeout_seconds)
+            return {}; // Failed to find the path due to timeout.
+        std::size_t const  num_used_bytes = tree.memory() + queue.size() * sizeof(QueueRecord);
+        if (num_used_bytes > max_memory_bytes)
+            return {}; // Failed to find the path due to out of memory.
+
         QueueRecord  record = queue.top();
         queue.pop();
 

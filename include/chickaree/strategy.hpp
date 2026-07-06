@@ -12,7 +12,9 @@ Path  find_path(
         std::uint32_t const  target_function,
         std::uint32_t const  target_basic_block,
         sala::NavigationGraph const&  graph,
-        PathTree&  tree
+        PathTree&  tree,
+        double const  timeout_seconds,
+        std::size_t const  max_memory_bytes
         );
 
 
