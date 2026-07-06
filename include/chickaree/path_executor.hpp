@@ -3,9 +3,9 @@
 
 #   include <chickaree/path.hpp>
 #   include <sala/control_flow_graph.hpp>
-#   include <cps/variable.hpp>
 #   include <sala/program.hpp>
 #   include <sala/exec_state.hpp>
+#   include <cps/variable.hpp>
 #   include <cstdint>
 #   include <string>
 
