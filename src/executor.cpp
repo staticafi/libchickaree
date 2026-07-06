@@ -221,6 +221,8 @@ struct Interpreter final : public sala::Interpreter
             Path const&  path
             );
 
+    std::uint32_t  path_index() const { return m_index; }
+
 private:
 
     void on_basic_block_changed();
@@ -306,27 +308,43 @@ void Interpreter::do_ret()
 }
 
 
-std::uint32_t  execute(
-        sala::Program const&  program,
-        sala::ControlFlowGraph const&  cfg,
-        std::vector<cps::Variable>&  input,
-        Path const&  path,
-        double const  timeout_seconds,
-        std::size_t const  max_memory_bytes
-        )
+PathExecutor::PathExecutor(sala::Program const&  program, sala::ControlFlowGraph const&  cfg, Path const&  path)
+    : m_program{ program }
+    , m_cfg{ cfg }
+    , m_path{ path }
+    , m_input{}
+    , m_path_index{ 0U }
+    , m_termination{ Termination::UNKNOWN }
+    , m_message{}
+{}
+
+
+void  PathExecutor::run(double const  timeout_seconds, std::size_t const  max_memory_bytes)
 {
     std::chrono::system_clock::time_point const  start_time_point = std::chrono::system_clock::now();
 
-    sala::ExecState  state{ &program, max_memory_bytes };
+    clear();
+
+    sala::ExecState  state{ &m_program, max_memory_bytes };
     sala::Sanitizer  sanitizer{ &state };
     sala::ExternCodeCStd  externals{ &state, &sanitizer };
-    InputProvider  input_provider{ input, externals };
+    InputProvider  input_provider{ m_input, externals };
     InputFlow  flow{ &state };
-    Interpreter  interpreter{ &state, &externals, { &sanitizer, &flow }, cfg, path };
+    Interpreter  interpreter{ &state, &externals, { &sanitizer, &flow }, m_cfg, m_path };
 
     interpreter.run(timeout_seconds - std::chrono::duration<double>(std::chrono::system_clock::now() - start_time_point).count());
 
-    return 0U;
+    m_path_index = interpreter.path_index();
+    m_termination = state.termination();
+    m_message = state.error_message();
+}
+
+
+void PathExecutor::clear()
+{
+    m_path_index = 0U;
+    m_termination = Termination::UNKNOWN;
+    m_message.clear();
 }
 
 
