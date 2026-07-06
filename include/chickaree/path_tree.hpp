@@ -91,6 +91,9 @@ struct  PathTree
     // Otherwise, there is called the insert_child method.
     std::uint32_t  get_or_insert_child(std::uint32_t  node_index, std::uint32_t  graph_node_index, std::int32_t  stack_depth_change);
 
+    // Returns number of bytes occupied by the tree.
+    std::size_t  memory() const;
+
 private:
 
     std::vector<Node>  m_nodes;

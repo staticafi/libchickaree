@@ -95,4 +95,10 @@ std::uint32_t  PathTree::get_or_insert_child(
 }
 
 
+std::size_t  PathTree::memory() const
+{
+    return m_nodes.size() * sizeof(Node);
+}
+
+
 }
