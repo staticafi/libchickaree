@@ -15,8 +15,8 @@ std::uint32_t  execute(
         sala::ControlFlowGraph const&  cfg,
         std::vector<cps::Variable>&  input,
         Path const&  path,
-        std::uint32_t  max_milliseconds,
-        std::uint32_t  max_megabytes
+        double  timeout_seconds,
+        std::size_t  max_megabytes
         );
 
 

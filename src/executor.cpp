@@ -311,20 +311,20 @@ std::uint32_t  execute(
         sala::ControlFlowGraph const&  cfg,
         std::vector<cps::Variable>&  input,
         Path const&  path,
-        std::uint32_t  max_milliseconds,
-        std::uint32_t  max_megabytes
+        double const  timeout_seconds,
+        std::size_t const  max_memory_bytes
         )
 {
     std::chrono::system_clock::time_point const  start_time_point = std::chrono::system_clock::now();
 
-    sala::ExecState  state{ &program, (std::size_t)max_megabytes * 1024ULL * 1024ULL };
+    sala::ExecState  state{ &program, max_memory_bytes };
     sala::Sanitizer  sanitizer{ &state };
     sala::ExternCodeCStd  externals{ &state, &sanitizer };
     InputProvider  input_provider{ input, externals };
     InputFlow  flow{ &state };
     Interpreter  interpreter{ &state, &externals, { &sanitizer, &flow }, cfg, path };
 
-    interpreter.run(start_time_point, 0.001 * (double)max_milliseconds);
+    interpreter.run(timeout_seconds - std::chrono::duration<double>(std::chrono::system_clock::now() - start_time_point).count());
 
     return 0U;
 }
