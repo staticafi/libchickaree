@@ -24,22 +24,32 @@ namespace  chickaree {
 
 struct  InputProvider
 {
-    InputProvider(std::vector<cps::Variable>&  input, sala::ExternCodeCStd&  externals);
+    InputProvider(
+            std::vector<cps::Variable> const&  input,
+            sala::ExternCodeCStd&  externals,
+            PathExecutor::RunOutcome&  outcomes
+            );
 
     template<typename T>
     void  read_input(std::size_t  offset = 0ULL);
 
 private:
 
-    std::vector<cps::Variable>&  m_input;
+    std::vector<cps::Variable> const&  m_input;
     std::uint32_t  m_index;
     sala::ExecState const&  m_state;
+    PathExecutor::RunOutcome&  m_outcomes;
 };
 
-InputProvider::InputProvider(std::vector<cps::Variable>&  input, sala::ExternCodeCStd&  externals)
+InputProvider::InputProvider(
+        std::vector<cps::Variable> const&  input,
+        sala::ExternCodeCStd&  externals,
+        PathExecutor::RunOutcome&  outcomes
+        )
     : m_input{ input }
     , m_index{ 0U }
     , m_state{ externals.state() }
+    , m_outcomes{ outcomes }
 {
 #   define REGISTER_INPUT_READER(FN_NAME, IMPL) externals.register_code(#FN_NAME, [this]() { IMPL; })
 #   define REGISTER_INPUT_READER_VIA_TYPE(FN_NAME, TYPE) REGISTER_INPUT_READER(FN_NAME, read_input<TYPE>() )
@@ -76,33 +86,152 @@ InputProvider::InputProvider(std::vector<cps::Variable>&  input, sala::ExternCod
 template<typename T>
 void  InputProvider::read_input(std::size_t const  offset)
 {
-    if ((std::size_t)m_index >= m_input.size())
-        m_input.push_back((T)0);
-    ASSUMPTION((std::size_t)m_index < m_input.size());
-    ASSUMPTION(m_input.at(m_index).type == cps::Variable((T)0).type);
+    if ((std::size_t)m_index < m_input.size())
+    {
+        ASSUMPTION(m_input.at(m_index).type == cps::Variable((T)0).type);
+        m_outcomes.inputs.variables.push_back(m_input.at(m_index));
+        ++m_index;
+    }
+    else
+        m_outcomes.inputs.variables.push_back((T)0);
+    m_outcomes.inputs.path_indices.push_back(m_outcomes.path_index + 1U);   // We add 1U because this method is called before
+                                                                            // Interpreter::on_basic_block_changed(). See method
+                                                                            // Interpreter::do_call().
+
     sala::MemPtr const  ptr{ m_state.stack_top().parameters().front().read<sala::MemPtr>() + offset };
-    m_input.at(m_index).write_value_to_address(ptr);
-    ++m_index;
+    m_outcomes.inputs.variables.back().write_value_to_address(ptr);
 }
 
 
 struct InputFlow : public sala::InputFlow
 {
-    InputFlow(sala::ExecState*  state);
+    InputFlow(sala::ExecState*  state, PathExecutor::RunOutcome&  outcomes);
 
 private:
 
+    union TaintDescriptor
+    {
+        std::uint32_t  value;
+        struct {
+            std::uint32_t
+                // Meaning of values:
+                // 0 - Taint source is input.
+                // 1 - Taint source is a constant (from constant segment).
+                // 2 - Taint source is bool value resulting from evaluation of a black box function.
+                // 3 - Not used (invalid value).
+                type  :  2,
+
+                // Index to the vector in outcomes, depending on the type:
+                // type == 0 -> m_outcomes.black_box_functions.inputs_indices.
+                // type == 1 -> m_outcomes.black_box_functions.constants_indices.
+                // type == 2 -> A common index to all vectors in m_outcomes.black_box_functions.black_box_functions.
+                index : 30;
+        } fields;
+    };
+
+    PathExecutor::RunOutcome&  m_outcomes;
+
     void start_input_flow(sala::MemPtr ptr, std::size_t count);
     void start_input_flow(std::size_t const count) { start_input_flow(parameters().front().read<sala::MemPtr>(), count);}
-    void do_ret() override;
 
-    sala::InputFlow::InputDescriptor  m_fresh_descriptor;
+    template<typename T>
+    void insert_black_box_function_unary();
+    template<typename T>
+    void insert_black_box_function_binary(cps::Comparator  comparator);
+    template<typename T>
+    void insert_black_box_function(cps::Comparator  comparator, double  function_value);
+
+    void do_truncate_u64_u8() override;
+    void do_truncate_u32_u8() override;
+    void do_truncate_u16_u8() override;
+
+    void do_f2i_f32_s8() override;
+    void do_f2i_f32_u8() override;
+    void do_f2i_f64_s8() override;
+    void do_f2i_f64_u8() override;
+
+    void do_p2i_8() override;
+
+    void do_less_s8() override;
+    void do_less_s16() override;
+    void do_less_s32() override;
+    void do_less_s64() override;
+    void do_less_u8() override;
+    void do_less_u16() override;
+    void do_less_u32() override;
+    void do_less_u64() override;
+    void do_less_f32() override;
+    void do_less_f64() override;
+    void do_less_w32() override;
+    void do_less_w64() override;
+
+    void do_less_equal_s8() override;
+    void do_less_equal_s16() override;
+    void do_less_equal_s32() override;
+    void do_less_equal_s64() override;
+    void do_less_equal_u8() override;
+    void do_less_equal_u16() override;
+    void do_less_equal_u32() override;
+    void do_less_equal_u64() override;
+    void do_less_equal_f32() override;
+    void do_less_equal_f64() override;
+    void do_less_equal_w32() override;
+    void do_less_equal_w64() override;
+
+    void do_greater_s8() override;
+    void do_greater_s16() override;
+    void do_greater_s32() override;
+    void do_greater_s64() override;
+    void do_greater_u8() override;
+    void do_greater_u16() override;
+    void do_greater_u32() override;
+    void do_greater_u64() override;
+    void do_greater_f32() override;
+    void do_greater_f64() override;
+    void do_greater_w32() override;
+    void do_greater_w64() override;
+
+    void do_greater_equal_s8() override;
+    void do_greater_equal_s16() override;
+    void do_greater_equal_s32() override;
+    void do_greater_equal_s64() override;
+    void do_greater_equal_u8() override;
+    void do_greater_equal_u16() override;
+    void do_greater_equal_u32() override;
+    void do_greater_equal_u64() override;
+    void do_greater_equal_f32() override;
+    void do_greater_equal_f64() override;
+    void do_greater_equal_w32() override;
+    void do_greater_equal_w64() override;
+
+    void do_equal_u8() override;
+    void do_equal_u16() override;
+    void do_equal_u32() override;
+    void do_equal_u64() override;
+    void do_equal_f32() override;
+    void do_equal_f64() override;
+    void do_equal_w32() override;
+    void do_equal_w64() override;
+
+    void do_unequal_u8() override;
+    void do_unequal_u16() override;
+    void do_unequal_u32() override;
+    void do_unequal_u64() override;
+    void do_unequal_f32() override;
+    void do_unequal_f64() override;
+    void do_unequal_w32() override;
+    void do_unequal_w64() override;
+
+    void do_isnan_w32() override;
+    void do_isnan_w64() override;
+
+    void do_branch() override;
 };
 
 
-InputFlow::InputFlow(sala::ExecState* const  state)
+InputFlow::InputFlow(sala::ExecState* const  state, PathExecutor::RunOutcome&  outcomes)
     : sala::InputFlow{ state }
-    , m_fresh_descriptor{ 0U }
+    , m_outcomes{ outcomes }
 {
     REGISTER_EXTERN_FUNCTION_PROCESSOR(__fizzer_private_io_model_cmdline_read_argc, this->start_input_flow(sizeof(natural_8_bit)) );
     REGISTER_EXTERN_FUNCTION_PROCESSOR(__fizzer_private_io_model_cmdline_read_char, this->start_input_flow(sizeof(char)) );
@@ -133,81 +262,592 @@ InputFlow::InputFlow(sala::ExecState* const  state)
 
 void InputFlow::start_input_flow(sala::MemPtr const ptr, std::size_t const count)
 {
-    ++m_fresh_descriptor;
+    TaintDescriptor const  descriptor{
+        .fields = {
+            .type = 0U, // Tracking the input.
+            .index = (std::uint32_t)m_outcomes.inputs.variables.size() - 1U
+        }
+    };
     for (std::size_t i = 0ULL; i != count; ++i)
-        start(ptr + i, m_fresh_descriptor);
+        start(ptr + i, descriptor.value);
 }
 
 
-void InputFlow::do_ret()
+template<typename T>
+void InputFlow::insert_black_box_function_unary()
 {
-    sala::InputFlow::do_ret();
+    insert_black_box_function<T>(cps::Comparator::UNEQUAL, (double)operands().back()->read<T>());
+}
 
 
-
-//     if (some_input_was_read_ && state().current_function().name() == "__fizzer_process_condition")
-//     {
-//         INVARIANT(data().sensitive_bits.size() < data().trace_size);
-
-//         trace_index_type const  path_index{ (trace_index_type)data().sensitive_bits.size() };
-//         trace_item const&  branching{ data().trace_ptr->at(path_index) };
-
-//         if (branching.id != parameters().front().read<location_id>())
-//         {
-//             auto const expected{ branching.id };
-//             auto const obtained{ parameters().front().read<location_id>() };
-//             state().set_stage(sala::ExecState::Stage::FINISHED);
-//             state().set_termination(
-//                 sala::ExecState::Termination::ERROR,
-//                 "input_flow_analysis[extern_code]",
-//                 "Execution diverged from the expected path in the tree."
-//                     " At path index " + std::to_string(path_index) + "/" + std::to_string(data().trace_size - 1U) + ": Unexpected location ID."
-//                     " [Expected: " + std::to_string(expected) +
-//                     ", obtained: " + std::to_string(obtained) + "]"
-//                 );
-//             return;
-//         }
-
-//         if (path_index + 1U < data().trace_size && branching.direction != parameters().at(1).read<bool>())
-//         {
-//             bool const expected{ branching.direction };
-//             std::stringstream obtained; obtained << (integer_32_bit)parameters().at(1).read<natural_8_bit>();
-//             auto const loc{ branching.id };
-//             state().set_stage(sala::ExecState::Stage::FINISHED);
-//             state().set_termination(
-//                 sala::ExecState::Termination::ERROR,
-//                 "input_flow_analysis[extern_code]",
-//                 "Execution diverged from the expected path in the tree."
-//                     " At path index " + std::to_string(path_index) + "/" + std::to_string(data().trace_size - 1U) + ": Unexpected direction taken."
-//                     " [Expected: " + std::to_string(expected) +
-//                     ", obtained: " + obtained.str() + "]"
-//                     "[NOTE: location ID: " + std::to_string(loc) + "]"
-//                 );
-//             return;
-//         }
-
-//         data().sensitive_bits.push_back({});
-//         std::unordered_set<natural_32_bit>&  sensitive_bits{ data().sensitive_bits.back() };
-//         sala::MemPtr ptr{ parameters().at(2).start() };
-//         for (std::size_t i = 0ULL; i != sizeof(branching_value); ++i)
-//             for (auto const& desc : read(ptr + i)->descriptors())
-//                 for (std::size_t j = 0ULL; j != 8ULL; ++j)
-//                     sensitive_bits.insert(8ULL * desc + j);
-
-//         if (path_index + 1U == data().trace_size)
-//         {
-//             state().set_stage(sala::ExecState::Stage::FINISHED);
-//             state().set_termination(
-//                 sala::ExecState::Termination::NORMAL,
-//                 "input_flow_analysis[extern_code]",
-//                 "Execution reached the last node of the expected path in the tree."
-//                 );
-
-//             return;
-//         }
-//     }
+template<typename T>
+void InputFlow::insert_black_box_function_binary(cps::Comparator const  comparator)
+{
+    insert_black_box_function<T>(comparator, (double)operands().at(1)->read<T>() - (double)operands().at(2)->read<T>());
+}
 
 
+template<typename T>
+void InputFlow::insert_black_box_function(cps::Comparator const  comparator, double const  function_value)
+{
+    m_outcomes.black_box_functions.inputs_indices.push_back({});
+    m_outcomes.black_box_functions.constants_indices.push_back({});
+    for (auto const  raw_descriptor : read(operands().front()->start())->descriptors())
+    {
+        TaintDescriptor const  descriptor{ .value = raw_descriptor };
+        if (descriptor.fields.type == 0)
+        {
+            INVARIANT((std::size_t)descriptor.fields.index < m_outcomes.inputs.variables.size());
+            m_outcomes.black_box_functions.inputs_indices.back().push_back(descriptor.fields.index);
+        }
+        else
+        {
+            INVARIANT((std::size_t)descriptor.fields.index < m_outcomes.constants.variables.size());
+            m_outcomes.black_box_functions.constants_indices.back().push_back(descriptor.fields.index);
+        }
+    }
+    m_outcomes.black_box_functions.comparators.push_back(comparator);
+    m_outcomes.black_box_functions.output.push_back(cps::Evaluation{
+        .function = function_value,
+        .predicate = operands().front()->read<std::uint8_t>() != (std::uint8_t)0
+    });
+    auto xxx = operands().front()->read<std::uint8_t>();
+    m_outcomes.black_box_functions.basic_blocks_hit_counts.push_back({}); // TODO!
+    m_outcomes.black_box_functions.path_indices.push_back(m_outcomes.path_index);
+
+    // We must start taint-flow for the bool value of the evaluated black-box function.
+}
+
+
+void InputFlow::do_truncate_u64_u8()
+{
+    sala::InputFlow::do_truncate_u64_u8();
+    set_post_operation([this]() { insert_black_box_function_unary<std::uint8_t>(); });
+}
+
+
+void InputFlow::do_truncate_u32_u8()
+{
+    sala::InputFlow::do_truncate_u32_u8();
+    set_post_operation([this]() { insert_black_box_function_unary<std::uint32_t>(); });
+}
+
+
+void InputFlow::do_truncate_u16_u8()
+{
+    sala::InputFlow::do_truncate_u16_u8();
+    set_post_operation([this]() { insert_black_box_function_unary<std::uint16_t>(); });
+}
+
+
+void InputFlow::do_f2i_f32_s8()
+{
+    sala::InputFlow::do_f2i_f32_s8();
+    set_post_operation([this]() { insert_black_box_function_unary<float>(); });
+}
+
+
+void InputFlow::do_f2i_f32_u8()
+{
+    sala::InputFlow::do_f2i_f32_u8();
+    set_post_operation([this]() { insert_black_box_function_unary<float>(); });
+}
+
+
+void InputFlow::do_f2i_f64_s8()
+{
+    sala::InputFlow::do_f2i_f64_s8();
+    set_post_operation([this]() { insert_black_box_function_unary<double>(); });
+}
+
+
+void InputFlow::do_f2i_f64_u8()
+{
+    sala::InputFlow::do_f2i_f64_u8();
+    set_post_operation([this]() { insert_black_box_function_unary<double>(); });
+}
+
+
+void InputFlow::do_p2i_8()
+{
+    sala::InputFlow::do_p2i_8();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int8_t>(cps::Comparator::LESS); });
+}
+
+
+void InputFlow::do_less_s8()
+{
+    sala::InputFlow::do_less_s8();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int8_t>(cps::Comparator::LESS); });
+}
+
+
+void InputFlow::do_less_s16()
+{
+    sala::InputFlow::do_less_s16();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int16_t>(cps::Comparator::LESS); });
+}
+
+
+void InputFlow::do_less_s32()
+{
+    sala::InputFlow::do_less_s32();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int32_t>(cps::Comparator::LESS); });
+}
+
+
+void InputFlow::do_less_s64()
+{
+    sala::InputFlow::do_less_s64();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int64_t>(cps::Comparator::LESS); });
+}
+
+
+void InputFlow::do_less_u8()
+{
+    sala::InputFlow::do_less_u8();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint8_t>(cps::Comparator::LESS); });
+}
+
+
+void InputFlow::do_less_u16()
+{
+    sala::InputFlow::do_less_u16();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint16_t>(cps::Comparator::LESS); });
+}
+
+
+void InputFlow::do_less_u32()
+{
+    sala::InputFlow::do_less_u32();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint32_t>(cps::Comparator::LESS); });
+}
+
+
+void InputFlow::do_less_u64()
+{
+    sala::InputFlow::do_less_u64();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint64_t>(cps::Comparator::LESS); });
+}
+
+
+void InputFlow::do_less_f32()
+{
+    sala::InputFlow::do_less_f32();
+    set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::LESS); });
+}
+
+
+void InputFlow::do_less_f64()
+{
+    sala::InputFlow::do_less_f64();
+    set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::LESS); });
+}
+
+
+void InputFlow::do_less_w32()
+{
+    sala::InputFlow::do_less_w32();
+    set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::LESS); });
+}
+
+
+void InputFlow::do_less_w64()
+{
+    sala::InputFlow::do_less_w64();
+    set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::LESS); });
+}
+
+
+void InputFlow::do_less_equal_s8()
+{
+    sala::InputFlow::do_less_equal_s8();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int8_t>(cps::Comparator::LESS_EQUAL); });
+}
+
+
+void InputFlow::do_less_equal_s16()
+{
+    sala::InputFlow::do_less_equal_s16();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int16_t>(cps::Comparator::LESS_EQUAL); });
+}
+
+
+void InputFlow::do_less_equal_s32()
+{
+    sala::InputFlow::do_less_equal_s32();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int32_t>(cps::Comparator::LESS_EQUAL); });
+}
+
+
+void InputFlow::do_less_equal_s64()
+{
+    sala::InputFlow::do_less_equal_s64();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int64_t>(cps::Comparator::LESS_EQUAL); });
+}
+
+
+void InputFlow::do_less_equal_u8()
+{
+    sala::InputFlow::do_less_equal_u8();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint8_t>(cps::Comparator::LESS_EQUAL); });
+}
+
+
+void InputFlow::do_less_equal_u16()
+{
+    sala::InputFlow::do_less_equal_u16();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint16_t>(cps::Comparator::LESS_EQUAL); });
+}
+
+
+void InputFlow::do_less_equal_u32()
+{
+    sala::InputFlow::do_less_equal_u32();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint32_t>(cps::Comparator::LESS_EQUAL); });
+}
+
+
+void InputFlow::do_less_equal_u64()
+{
+    sala::InputFlow::do_less_equal_u64();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint64_t>(cps::Comparator::LESS_EQUAL); });
+}
+
+
+void InputFlow::do_less_equal_f32()
+{
+    sala::InputFlow::do_less_equal_f32();
+    set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::LESS_EQUAL); });
+}
+
+
+void InputFlow::do_less_equal_f64()
+{
+    sala::InputFlow::do_less_equal_f64();
+    set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::LESS_EQUAL); });
+}
+
+
+void InputFlow::do_less_equal_w32()
+{
+    sala::InputFlow::do_less_equal_w32();
+    set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::LESS_EQUAL); });
+}
+
+
+void InputFlow::do_less_equal_w64()
+{
+    sala::InputFlow::do_less_equal_w64();
+    set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::LESS_EQUAL); });
+}
+
+
+void InputFlow::do_greater_s8()
+{
+    sala::InputFlow::do_greater_s8();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int8_t>(cps::Comparator::GREATER); });
+}
+
+
+void InputFlow::do_greater_s16()
+{
+    sala::InputFlow::do_greater_s16();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int16_t>(cps::Comparator::GREATER); });
+}
+
+
+void InputFlow::do_greater_s32()
+{
+    sala::InputFlow::do_greater_s32();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int32_t>(cps::Comparator::GREATER); });
+}
+
+
+void InputFlow::do_greater_s64()
+{
+    sala::InputFlow::do_greater_s64();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int64_t>(cps::Comparator::GREATER); });
+}
+
+
+void InputFlow::do_greater_u8()
+{
+    sala::InputFlow::do_greater_u8();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint8_t>(cps::Comparator::GREATER); });
+}
+
+
+void InputFlow::do_greater_u16()
+{
+    sala::InputFlow::do_greater_u16();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint16_t>(cps::Comparator::GREATER); });
+}
+
+
+void InputFlow::do_greater_u32()
+{
+    sala::InputFlow::do_greater_u32();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint32_t>(cps::Comparator::GREATER); });
+}
+
+
+void InputFlow::do_greater_u64()
+{
+    sala::InputFlow::do_greater_u64();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint64_t>(cps::Comparator::GREATER); });
+}
+
+
+void InputFlow::do_greater_f32()
+{
+    sala::InputFlow::do_greater_f32();
+    set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::GREATER); });
+}
+
+
+void InputFlow::do_greater_f64()
+{
+    sala::InputFlow::do_greater_f64();
+    set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::GREATER); });
+}
+
+
+void InputFlow::do_greater_w32()
+{
+    sala::InputFlow::do_greater_w32();
+    set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::GREATER); });
+}
+
+
+void InputFlow::do_greater_w64()
+{
+    sala::InputFlow::do_greater_w64();
+    set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::GREATER); });
+}
+
+
+void InputFlow::do_greater_equal_s8()
+{
+    sala::InputFlow::do_greater_equal_s8();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int8_t>(cps::Comparator::GREATER_EQUAL); });
+}
+
+
+void InputFlow::do_greater_equal_s16()
+{
+    sala::InputFlow::do_greater_equal_s16();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int16_t>(cps::Comparator::GREATER_EQUAL); });
+}
+
+
+void InputFlow::do_greater_equal_s32()
+{
+    sala::InputFlow::do_greater_equal_s32();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int32_t>(cps::Comparator::GREATER_EQUAL); });
+}
+
+
+void InputFlow::do_greater_equal_s64()
+{
+    sala::InputFlow::do_greater_equal_s64();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int64_t>(cps::Comparator::GREATER_EQUAL); });
+}
+
+
+void InputFlow::do_greater_equal_u8()
+{
+    sala::InputFlow::do_greater_equal_u8();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint8_t>(cps::Comparator::GREATER_EQUAL); });
+}
+
+
+void InputFlow::do_greater_equal_u16()
+{
+    sala::InputFlow::do_greater_equal_u16();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint16_t>(cps::Comparator::GREATER_EQUAL); });
+}
+
+
+void InputFlow::do_greater_equal_u32()
+{
+    sala::InputFlow::do_greater_equal_u32();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint32_t>(cps::Comparator::GREATER_EQUAL); });
+}
+
+
+void InputFlow::do_greater_equal_u64()
+{
+    sala::InputFlow::do_greater_equal_u64();
+    set_post_operation([this]() { insert_black_box_function_binary<std::uint64_t>(cps::Comparator::GREATER_EQUAL); });
+}
+
+
+void InputFlow::do_greater_equal_f32()
+{
+    sala::InputFlow::do_greater_equal_f32();
+    set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::GREATER_EQUAL); });
+}
+
+
+void InputFlow::do_greater_equal_f64()
+{
+    sala::InputFlow::do_greater_equal_f64();
+    set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::GREATER_EQUAL); });
+}
+
+
+void InputFlow::do_greater_equal_w32()
+{
+    sala::InputFlow::do_greater_equal_w32();
+    set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::GREATER_EQUAL); });
+}
+
+
+void InputFlow::do_greater_equal_w64()
+{
+    sala::InputFlow::do_greater_equal_w64();
+    set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::GREATER_EQUAL); });
+}
+
+
+void InputFlow::do_equal_u8()
+{
+    sala::InputFlow::do_equal_u8();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int8_t>(cps::Comparator::EQUAL); }); // indeed signed int!
+}
+
+
+void InputFlow::do_equal_u16()
+{
+    sala::InputFlow::do_equal_u16();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int16_t>(cps::Comparator::EQUAL); }); // indeed signed int!
+}
+
+
+void InputFlow::do_equal_u32()
+{
+    sala::InputFlow::do_equal_u32();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int32_t>(cps::Comparator::EQUAL); }); // indeed signed int!
+}
+
+
+void InputFlow::do_equal_u64()
+{
+    sala::InputFlow::do_equal_u64();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int64_t>(cps::Comparator::EQUAL); }); // indeed signed int!
+}
+
+
+void InputFlow::do_equal_f32()
+{
+    sala::InputFlow::do_equal_f32();
+    set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::EQUAL); });
+}
+
+
+void InputFlow::do_equal_f64()
+{
+    sala::InputFlow::do_equal_f64();
+    set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::EQUAL); });
+}
+
+
+void InputFlow::do_equal_w32()
+{
+    sala::InputFlow::do_equal_w32();
+    set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::EQUAL); });
+}
+
+
+void InputFlow::do_equal_w64()
+{
+    sala::InputFlow::do_equal_w64();
+    set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::EQUAL); });
+}
+
+
+void InputFlow::do_unequal_u8()
+{
+    sala::InputFlow::do_unequal_u8();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int8_t>(cps::Comparator::UNEQUAL); }); // indeed signed int!
+}
+
+
+void InputFlow::do_unequal_u16()
+{
+    sala::InputFlow::do_unequal_u16();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int16_t>(cps::Comparator::UNEQUAL); }); // indeed signed int!
+}
+
+
+void InputFlow::do_unequal_u32()
+{
+    sala::InputFlow::do_unequal_u32();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int32_t>(cps::Comparator::UNEQUAL); }); // indeed signed int!
+}
+
+
+void InputFlow::do_unequal_u64()
+{
+    sala::InputFlow::do_unequal_u64();
+    set_post_operation([this]() { insert_black_box_function_binary<std::int64_t>(cps::Comparator::UNEQUAL); }); // indeed signed int!
+}
+
+
+void InputFlow::do_unequal_f32()
+{
+    sala::InputFlow::do_unequal_f32();
+    set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::UNEQUAL); });
+}
+
+
+void InputFlow::do_unequal_f64()
+{
+    sala::InputFlow::do_unequal_f64();
+    set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::UNEQUAL); });
+}
+
+
+void InputFlow::do_unequal_w32()
+{
+    sala::InputFlow::do_unequal_w32();
+    set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::UNEQUAL); });
+}
+
+
+void InputFlow::do_unequal_w64()
+{
+    sala::InputFlow::do_unequal_w64();
+    set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::UNEQUAL); });
+}
+
+
+void InputFlow::do_isnan_w32()
+{
+    sala::InputFlow::do_isnan_w32();
+    set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::UNEQUAL); });
+}
+
+
+void InputFlow::do_isnan_w64()
+{
+    sala::InputFlow::do_isnan_w64();
+    set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::UNEQUAL); });
+}
+
+
+void InputFlow::do_branch()
+{
+    m_outcomes.branchings.black_box_functions_indices.push_back({});
+    m_outcomes.branchings.path_indices.push_back(m_outcomes.path_index);
+    for (auto const  raw_descriptor : read(operands().front()->start())->descriptors())
+    {
+        TaintDescriptor const  descriptor{ .value = raw_descriptor };
+        if (descriptor.fields.type == 2)
+            m_outcomes.branchings.black_box_functions_indices.back().push_back(descriptor.fields.index);
+    }
+    sala::InputFlow::do_branch();
 }
 
 
@@ -218,10 +858,10 @@ struct Interpreter final : public sala::Interpreter
             sala::ExternCode* extern_code,
             std::vector<sala::Analyzer*> const& analyzers,
             sala::ControlFlowGraph const&  cfg,
-            Path const&  path
+            PathTree const&  tree,
+            Path const&  path,
+            PathExecutor::RunOutcome&  outcomes
             );
-
-    std::uint32_t  path_index() const { return m_index; }
 
 private:
 
@@ -233,7 +873,9 @@ private:
     void do_ret() override;
 
     sala::ControlFlowGraph const&  m_cfg;
+    PathTree const&  m_tree;
     Path const&  m_path;
+    PathExecutor::RunOutcome&  m_outcomes;
     std::uint32_t  m_index; // Index to the m_path to be reached next in the execution.
 };
 
@@ -243,11 +885,15 @@ Interpreter::Interpreter(
         sala::ExternCode* extern_code,
         std::vector<sala::Analyzer*> const& analyzers,
         sala::ControlFlowGraph const&  cfg,
-        Path const&  path
+        PathTree const&  tree,
+        Path const&  path,
+        PathExecutor::RunOutcome&  outcomes
         )
     : sala::Interpreter( state, extern_code, analyzers )
     , m_cfg{ cfg }
+    , m_tree{ tree }
     , m_path{ path }
+    , m_outcomes{ outcomes }
     , m_index{ 1U } // The first basic block in the path is program entry point, which is reached by default. So, we wait for next one.
 {}
 
@@ -257,7 +903,7 @@ void Interpreter::on_basic_block_changed()
     if (state().stage() != sala::ExecState::Stage::EXECUTING)
         return;
 
-    sala::ControlFlowGraph::Node const& n = m_cfg.node(m_path.at(m_index));
+    sala::ControlFlowGraph::Node const& n = m_cfg.node(m_tree.graph_node_index(m_path.at(m_index)));
     if (n.function != state().stack_top().function_index() || n.basic_block != ip().block())
     {
         state().set_stage(sala::ExecState::Stage::FINISHED);
@@ -267,6 +913,7 @@ void Interpreter::on_basic_block_changed()
             state().make_error_message("The execution has diverged from the path at index " + std::to_string(m_index) + ".")
             );
     }
+    m_outcomes.path_index = m_index;
     ++m_index;
     if ((std::size_t)m_index == m_path.size())
     {
@@ -308,43 +955,43 @@ void Interpreter::do_ret()
 }
 
 
-PathExecutor::PathExecutor(sala::Program const&  program, sala::ControlFlowGraph const&  cfg, Path const&  path)
+PathExecutor::PathExecutor(
+        sala::Program const&  program,
+        sala::ControlFlowGraph const&  cfg,
+        PathTree const&  tree,
+        Path const&  path
+        )
     : m_program{ program }
     , m_cfg{ cfg }
+    , m_tree{ tree }
     , m_path{ path }
-    , m_input{}
-    , m_path_index{ 0U }
-    , m_termination{ Termination::UNKNOWN }
-    , m_message{}
+    , m_run_outcome{}
 {}
 
 
-void  PathExecutor::run(double const  timeout_seconds, std::size_t const  max_memory_bytes)
+PathExecutor::RunOutcome const&  PathExecutor::run(
+        std::vector<cps::Variable> const&  input,
+        double const  timeout_seconds,
+        std::size_t const  max_memory_bytes
+        )
 {
     std::chrono::system_clock::time_point const  start_time_point = std::chrono::system_clock::now();
 
-    clear();
+    m_run_outcome = {}; // Clear data - preparation for the next execution.
 
     sala::ExecState  state{ &m_program, max_memory_bytes };
     sala::Sanitizer  sanitizer{ &state };
     sala::ExternCodeCStd  externals{ &state, &sanitizer };
-    InputProvider  input_provider{ m_input, externals };
-    InputFlow  flow{ &state };
-    Interpreter  interpreter{ &state, &externals, { &sanitizer, &flow }, m_cfg, m_path };
+    InputProvider  input_provider{ input, externals, m_run_outcome };
+    InputFlow  flow{ &state, m_run_outcome };
+    Interpreter  interpreter{ &state, &externals, { &sanitizer, &flow }, m_cfg, m_tree, m_path, m_run_outcome };
 
     interpreter.run(timeout_seconds - std::chrono::duration<double>(std::chrono::system_clock::now() - start_time_point).count());
 
-    m_path_index = interpreter.path_index();
-    m_termination = state.termination();
-    m_message = state.error_message();
-}
+    m_run_outcome.termination = state.termination();
+    m_run_outcome.message = state.error_message();
 
-
-void PathExecutor::clear()
-{
-    m_path_index = 0U;
-    m_termination = Termination::UNKNOWN;
-    m_message.clear();
+    return m_run_outcome;
 }
 
 

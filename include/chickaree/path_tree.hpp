@@ -43,6 +43,13 @@ struct  PathTree
         // call-stack frame). With this field we can reconstruct
         // stack for every node in the tree.
         std::uint32_t  stack_entry;
+
+        struct Flags
+        {
+            std::uint32_t  unreachable : 1;
+        };
+
+        Flags  flags;
     };
 
     explicit PathTree(std::uint32_t  start_graph_node_index);
@@ -59,6 +66,8 @@ struct  PathTree
     std::uint32_t  sibling(std::uint32_t const  node_index) const { return node(node_index).sibling; }
     std::uint32_t  child(std::uint32_t const  node_index) const { return node(node_index).child; }
     std::uint32_t  stack_entry(std::uint32_t const  node_index) const { return node(node_index).stack_entry; }
+    Node::Flags const& flags(std::uint32_t const  node_index) const { return node(node_index).flags; }
+    Node::Flags&  flags(std::uint32_t const  node_index) { return m_nodes.at(node_index).flags; }
 
     // The method allows to jump from the passed stack entry node to the next
     // one (i.e., one level deeper in the call-stack). The parameter passed to

@@ -88,7 +88,7 @@ Cost  estimate_cost(
 }
 
 
-Path  find_path(
+std::uint32_t  find_path(
         std::uint32_t const  target_function,
         std::uint32_t const  target_basic_block,
         sala::NavigationGraph const&  graph,
@@ -110,26 +110,21 @@ Path  find_path(
     {
         double const num_passed_seconds = std::chrono::duration<double>(std::chrono::system_clock::now() - start_time_point).count();
         if (num_passed_seconds > timeout_seconds)
-            return {}; // Failed to find the path due to timeout.
+            return PathTree::INVALID_INDEX; // Failed to find the path due to timeout.
         std::size_t const  num_used_bytes = tree.memory() + queue.size() * sizeof(QueueRecord);
         if (num_used_bytes > max_memory_bytes)
-            return {}; // Failed to find the path due to out of memory.
+            return PathTree::INVALID_INDEX; // Failed to find the path due to out of memory.
 
         QueueRecord  record = queue.top();
         queue.pop();
 
+        if (tree.flags(record.tree_node_index).unreachable == 1)
+            continue;
+
         std::uint32_t const  graph_node_index{ tree.graph_node_index(record.tree_node_index) };
 
         if (target_graph_node_index == graph_node_index)
-        {
-            Path  result;
-            for (std::uint32_t  tree_node_index = record.tree_node_index;
-                    tree_node_index != PathTree::INVALID_INDEX;
-                    tree_node_index = tree.parent(tree_node_index) )
-                result.push_back(tree.graph_node_index(tree_node_index));
-            std::reverse(result.begin(), result.end());
-            return result;
-        }
+            return record.tree_node_index;
 
         if (sala::NavigationGraph::sum_costs(record.g, record.h) == sala::NavigationGraph::INFINITY_COST)
             continue;
@@ -165,7 +160,7 @@ Path  find_path(
         }
     }
     while (!queue.empty());
-    return {}; // No path exists.
+    return PathTree::INVALID_INDEX;
 }
 
 

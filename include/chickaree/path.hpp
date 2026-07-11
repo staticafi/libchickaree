@@ -7,11 +7,11 @@
 namespace chickaree {
 
 
+// Elements are indices of nodes in the PathTree.
+// A Path instance thus represents a path in the tree.
 using  Path = std::vector<std::uint32_t>;
     
 
 }
-
-
 
 #endif
