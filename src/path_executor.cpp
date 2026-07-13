@@ -316,6 +316,13 @@ void InputFlow::insert_black_box_function(cps::Comparator const  comparator, dou
     m_outcomes.black_box_functions.path_indices.push_back(m_outcomes.path_index);
 
     // We must start taint-flow for the bool value of the evaluated black-box function.
+    TaintDescriptor const  descriptor{
+        .fields = {
+            .type = 2U, // Tracking bool value.
+            .index = (std::uint32_t)m_outcomes.black_box_functions.comparators.size() - 1U
+        }
+    };
+    start(operands().front()->start(), descriptor.value);
 }
 
 
