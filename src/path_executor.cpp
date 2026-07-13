@@ -1,6 +1,6 @@
 #include <chickaree/path_executor.hpp>
 #include <sala/sanitizer.hpp>
-#include <sala/input_flow.hpp>
+#include <sala/input_flow_with_updates.hpp>
 #include <sala/interpreter.hpp>
 #include <sala/extern_code_cstd.hpp>
 #include <utility/assumptions.hpp>
@@ -40,6 +40,7 @@ private:
     sala::ExecState const&  m_state;
     PathExecutor::RunOutcome&  m_outcomes;
 };
+
 
 InputProvider::InputProvider(
         std::vector<cps::Variable> const&  input,
@@ -103,9 +104,9 @@ void  InputProvider::read_input(std::size_t const  offset)
 }
 
 
-struct InputFlow : public sala::InputFlow
+struct InputFlow : public sala::InputFlowWithUpdates
 {
-    InputFlow(sala::ExecState*  state, PathExecutor::RunOutcome&  outcomes);
+    InputFlow(sala::ExecState*  state, sala::ControlFlowGraph const&  cfg, PathExecutor::RunOutcome&  outcomes);
 
 private:
 
@@ -129,6 +130,7 @@ private:
         } fields;
     };
 
+    sala::ControlFlowGraph const&  m_cfg;
     PathExecutor::RunOutcome&  m_outcomes;
 
     void start_input_flow(sala::MemPtr ptr, std::size_t count);
@@ -229,8 +231,9 @@ private:
 };
 
 
-InputFlow::InputFlow(sala::ExecState* const  state, PathExecutor::RunOutcome&  outcomes)
-    : sala::InputFlow{ state }
+InputFlow::InputFlow(sala::ExecState* const  state, sala::ControlFlowGraph const&  cfg, PathExecutor::RunOutcome&  outcomes)
+    : sala::InputFlowWithUpdates{ state }
+    , m_cfg{ cfg }
     , m_outcomes{ outcomes }
 {
     REGISTER_EXTERN_FUNCTION_PROCESSOR(__fizzer_private_io_model_cmdline_read_argc, this->start_input_flow(sizeof(natural_8_bit)) );
@@ -268,8 +271,7 @@ void InputFlow::start_input_flow(sala::MemPtr const ptr, std::size_t const count
             .index = (std::uint32_t)m_outcomes.inputs.variables.size() - 1U
         }
     };
-    for (std::size_t i = 0ULL; i != count; ++i)
-        start(ptr + i, descriptor.value);
+    start(ptr, count, descriptor.value);
 }
 
 
@@ -311,8 +313,18 @@ void InputFlow::insert_black_box_function(cps::Comparator const  comparator, dou
         .function = function_value,
         .predicate = operands().front()->read<std::uint8_t>() != (std::uint8_t)0
     });
-    auto xxx = operands().front()->read<std::uint8_t>();
-    m_outcomes.black_box_functions.basic_blocks_hit_counts.push_back({}); // TODO!
+    m_outcomes.black_box_functions.basic_blocks_hit_counts.push_back({});
+    {
+        UpdatesHitCountsPtr const updates_hit_counts = read_updates(operands().front()->start());
+        if (updates_hit_counts != nullptr)
+            for (auto const& id_and_count : *updates_hit_counts)
+            {
+                std::uint32_t const  node_index{
+                    m_cfg.bb_of_instruction(id_and_count.first.func, id_and_count.first.block, id_and_count.first.instr)
+                };
+                m_outcomes.black_box_functions.basic_blocks_hit_counts.back().insert({ node_index, id_and_count.second });
+            }
+    }
     m_outcomes.black_box_functions.path_indices.push_back(m_outcomes.path_index);
 
     // We must start taint-flow for the bool value of the evaluated black-box function.
@@ -990,7 +1002,7 @@ PathExecutor::RunOutcome const&  PathExecutor::run(
     sala::Sanitizer  sanitizer{ &state };
     sala::ExternCodeCStd  externals{ &state, &sanitizer };
     InputProvider  input_provider{ input, externals, m_run_outcome };
-    InputFlow  flow{ &state, m_run_outcome };
+    InputFlow  flow{ &state, m_cfg, m_run_outcome };
     Interpreter  interpreter{ &state, &externals, { &sanitizer, &flow }, m_cfg, m_tree, m_path, m_run_outcome };
 
     interpreter.run(timeout_seconds - std::chrono::duration<double>(std::chrono::system_clock::now() - start_time_point).count());
