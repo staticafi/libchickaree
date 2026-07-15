@@ -145,17 +145,6 @@ private:
     template<typename T>
     void insert_black_box_function(cps::Comparator  comparator, double  function_value);
 
-    void do_truncate_u64_u8() override;
-    void do_truncate_u32_u8() override;
-    void do_truncate_u16_u8() override;
-
-    void do_f2i_f32_s8() override;
-    void do_f2i_f32_u8() override;
-    void do_f2i_f64_s8() override;
-    void do_f2i_f64_u8() override;
-
-    void do_p2i_8() override;
-
     void do_less_s8() override;
     void do_less_s16() override;
     void do_less_s32() override;
@@ -342,62 +331,6 @@ void InputFlow::insert_black_box_function(cps::Comparator const  comparator, dou
         }
     };
     start_extend(operands().front()->start(), descriptor.value);
-}
-
-
-void InputFlow::do_truncate_u64_u8()
-{
-    Super::do_truncate_u64_u8();
-    set_post_operation([this]() { insert_black_box_function_unary<std::uint8_t>(); });
-}
-
-
-void InputFlow::do_truncate_u32_u8()
-{
-    Super::do_truncate_u32_u8();
-    set_post_operation([this]() { insert_black_box_function_unary<std::uint32_t>(); });
-}
-
-
-void InputFlow::do_truncate_u16_u8()
-{
-    Super::do_truncate_u16_u8();
-    set_post_operation([this]() { insert_black_box_function_unary<std::uint16_t>(); });
-}
-
-
-void InputFlow::do_f2i_f32_s8()
-{
-    Super::do_f2i_f32_s8();
-    set_post_operation([this]() { insert_black_box_function_unary<float>(); });
-}
-
-
-void InputFlow::do_f2i_f32_u8()
-{
-    Super::do_f2i_f32_u8();
-    set_post_operation([this]() { insert_black_box_function_unary<float>(); });
-}
-
-
-void InputFlow::do_f2i_f64_s8()
-{
-    Super::do_f2i_f64_s8();
-    set_post_operation([this]() { insert_black_box_function_unary<double>(); });
-}
-
-
-void InputFlow::do_f2i_f64_u8()
-{
-    Super::do_f2i_f64_u8();
-    set_post_operation([this]() { insert_black_box_function_unary<double>(); });
-}
-
-
-void InputFlow::do_p2i_8()
-{
-    Super::do_p2i_8();
-    set_post_operation([this]() { insert_black_box_function_binary<std::int8_t>(cps::Comparator::LESS); });
 }
 
 
