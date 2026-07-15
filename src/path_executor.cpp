@@ -106,6 +106,8 @@ void  InputProvider::read_input(std::size_t const  offset)
 
 struct InputFlow : public sala::InputFlowWithUpdates
 {
+    using Super = sala::InputFlowWithUpdates;
+
     InputFlow(sala::ExecState*  state, sala::ControlFlowGraph const&  cfg, PathExecutor::RunOutcome&  outcomes);
 
 private:
@@ -297,15 +299,20 @@ void InputFlow::insert_black_box_function(cps::Comparator const  comparator, dou
     for (auto const  raw_descriptor : read(operands().front()->start())->descriptors())
     {
         TaintDescriptor const  descriptor{ .value = raw_descriptor };
-        if (descriptor.fields.type == 0)
+        switch (descriptor.fields.type)
         {
-            INVARIANT((std::size_t)descriptor.fields.index < m_outcomes.inputs.variables.size());
-            m_outcomes.black_box_functions.inputs_indices.back().push_back(descriptor.fields.index);
-        }
-        else
-        {
-            INVARIANT((std::size_t)descriptor.fields.index < m_outcomes.constants.variables.size());
-            m_outcomes.black_box_functions.constants_indices.back().push_back(descriptor.fields.index);
+            case 0:
+                INVARIANT((std::size_t)descriptor.fields.index < m_outcomes.inputs.variables.size());
+                m_outcomes.black_box_functions.inputs_indices.back().push_back(descriptor.fields.index);
+                break;
+            case 1:
+                INVARIANT((std::size_t)descriptor.fields.index < m_outcomes.constants.variables.size());
+                m_outcomes.black_box_functions.constants_indices.back().push_back(descriptor.fields.index);
+                break;
+            default:
+                // We can ignore type == 2 here, because the taint (descriptors) from the
+                // black box function at descriptor.fields.index are propagated as well.
+                break;
         }
     }
     m_outcomes.black_box_functions.comparators.push_back(comparator);
@@ -334,524 +341,524 @@ void InputFlow::insert_black_box_function(cps::Comparator const  comparator, dou
             .index = (std::uint32_t)m_outcomes.black_box_functions.comparators.size() - 1U
         }
     };
-    start(operands().front()->start(), descriptor.value);
+    start_extend(operands().front()->start(), descriptor.value);
 }
 
 
 void InputFlow::do_truncate_u64_u8()
 {
-    sala::InputFlow::do_truncate_u64_u8();
+    Super::do_truncate_u64_u8();
     set_post_operation([this]() { insert_black_box_function_unary<std::uint8_t>(); });
 }
 
 
 void InputFlow::do_truncate_u32_u8()
 {
-    sala::InputFlow::do_truncate_u32_u8();
+    Super::do_truncate_u32_u8();
     set_post_operation([this]() { insert_black_box_function_unary<std::uint32_t>(); });
 }
 
 
 void InputFlow::do_truncate_u16_u8()
 {
-    sala::InputFlow::do_truncate_u16_u8();
+    Super::do_truncate_u16_u8();
     set_post_operation([this]() { insert_black_box_function_unary<std::uint16_t>(); });
 }
 
 
 void InputFlow::do_f2i_f32_s8()
 {
-    sala::InputFlow::do_f2i_f32_s8();
+    Super::do_f2i_f32_s8();
     set_post_operation([this]() { insert_black_box_function_unary<float>(); });
 }
 
 
 void InputFlow::do_f2i_f32_u8()
 {
-    sala::InputFlow::do_f2i_f32_u8();
+    Super::do_f2i_f32_u8();
     set_post_operation([this]() { insert_black_box_function_unary<float>(); });
 }
 
 
 void InputFlow::do_f2i_f64_s8()
 {
-    sala::InputFlow::do_f2i_f64_s8();
+    Super::do_f2i_f64_s8();
     set_post_operation([this]() { insert_black_box_function_unary<double>(); });
 }
 
 
 void InputFlow::do_f2i_f64_u8()
 {
-    sala::InputFlow::do_f2i_f64_u8();
+    Super::do_f2i_f64_u8();
     set_post_operation([this]() { insert_black_box_function_unary<double>(); });
 }
 
 
 void InputFlow::do_p2i_8()
 {
-    sala::InputFlow::do_p2i_8();
+    Super::do_p2i_8();
     set_post_operation([this]() { insert_black_box_function_binary<std::int8_t>(cps::Comparator::LESS); });
 }
 
 
 void InputFlow::do_less_s8()
 {
-    sala::InputFlow::do_less_s8();
+    Super::do_less_s8();
     set_post_operation([this]() { insert_black_box_function_binary<std::int8_t>(cps::Comparator::LESS); });
 }
 
 
 void InputFlow::do_less_s16()
 {
-    sala::InputFlow::do_less_s16();
+    Super::do_less_s16();
     set_post_operation([this]() { insert_black_box_function_binary<std::int16_t>(cps::Comparator::LESS); });
 }
 
 
 void InputFlow::do_less_s32()
 {
-    sala::InputFlow::do_less_s32();
+    Super::do_less_s32();
     set_post_operation([this]() { insert_black_box_function_binary<std::int32_t>(cps::Comparator::LESS); });
 }
 
 
 void InputFlow::do_less_s64()
 {
-    sala::InputFlow::do_less_s64();
+    Super::do_less_s64();
     set_post_operation([this]() { insert_black_box_function_binary<std::int64_t>(cps::Comparator::LESS); });
 }
 
 
 void InputFlow::do_less_u8()
 {
-    sala::InputFlow::do_less_u8();
+    Super::do_less_u8();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint8_t>(cps::Comparator::LESS); });
 }
 
 
 void InputFlow::do_less_u16()
 {
-    sala::InputFlow::do_less_u16();
+    Super::do_less_u16();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint16_t>(cps::Comparator::LESS); });
 }
 
 
 void InputFlow::do_less_u32()
 {
-    sala::InputFlow::do_less_u32();
+    Super::do_less_u32();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint32_t>(cps::Comparator::LESS); });
 }
 
 
 void InputFlow::do_less_u64()
 {
-    sala::InputFlow::do_less_u64();
+    Super::do_less_u64();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint64_t>(cps::Comparator::LESS); });
 }
 
 
 void InputFlow::do_less_f32()
 {
-    sala::InputFlow::do_less_f32();
+    Super::do_less_f32();
     set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::LESS); });
 }
 
 
 void InputFlow::do_less_f64()
 {
-    sala::InputFlow::do_less_f64();
+    Super::do_less_f64();
     set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::LESS); });
 }
 
 
 void InputFlow::do_less_w32()
 {
-    sala::InputFlow::do_less_w32();
+    Super::do_less_w32();
     set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::LESS); });
 }
 
 
 void InputFlow::do_less_w64()
 {
-    sala::InputFlow::do_less_w64();
+    Super::do_less_w64();
     set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::LESS); });
 }
 
 
 void InputFlow::do_less_equal_s8()
 {
-    sala::InputFlow::do_less_equal_s8();
+    Super::do_less_equal_s8();
     set_post_operation([this]() { insert_black_box_function_binary<std::int8_t>(cps::Comparator::LESS_EQUAL); });
 }
 
 
 void InputFlow::do_less_equal_s16()
 {
-    sala::InputFlow::do_less_equal_s16();
+    Super::do_less_equal_s16();
     set_post_operation([this]() { insert_black_box_function_binary<std::int16_t>(cps::Comparator::LESS_EQUAL); });
 }
 
 
 void InputFlow::do_less_equal_s32()
 {
-    sala::InputFlow::do_less_equal_s32();
+    Super::do_less_equal_s32();
     set_post_operation([this]() { insert_black_box_function_binary<std::int32_t>(cps::Comparator::LESS_EQUAL); });
 }
 
 
 void InputFlow::do_less_equal_s64()
 {
-    sala::InputFlow::do_less_equal_s64();
+    Super::do_less_equal_s64();
     set_post_operation([this]() { insert_black_box_function_binary<std::int64_t>(cps::Comparator::LESS_EQUAL); });
 }
 
 
 void InputFlow::do_less_equal_u8()
 {
-    sala::InputFlow::do_less_equal_u8();
+    Super::do_less_equal_u8();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint8_t>(cps::Comparator::LESS_EQUAL); });
 }
 
 
 void InputFlow::do_less_equal_u16()
 {
-    sala::InputFlow::do_less_equal_u16();
+    Super::do_less_equal_u16();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint16_t>(cps::Comparator::LESS_EQUAL); });
 }
 
 
 void InputFlow::do_less_equal_u32()
 {
-    sala::InputFlow::do_less_equal_u32();
+    Super::do_less_equal_u32();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint32_t>(cps::Comparator::LESS_EQUAL); });
 }
 
 
 void InputFlow::do_less_equal_u64()
 {
-    sala::InputFlow::do_less_equal_u64();
+    Super::do_less_equal_u64();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint64_t>(cps::Comparator::LESS_EQUAL); });
 }
 
 
 void InputFlow::do_less_equal_f32()
 {
-    sala::InputFlow::do_less_equal_f32();
+    Super::do_less_equal_f32();
     set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::LESS_EQUAL); });
 }
 
 
 void InputFlow::do_less_equal_f64()
 {
-    sala::InputFlow::do_less_equal_f64();
+    Super::do_less_equal_f64();
     set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::LESS_EQUAL); });
 }
 
 
 void InputFlow::do_less_equal_w32()
 {
-    sala::InputFlow::do_less_equal_w32();
+    Super::do_less_equal_w32();
     set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::LESS_EQUAL); });
 }
 
 
 void InputFlow::do_less_equal_w64()
 {
-    sala::InputFlow::do_less_equal_w64();
+    Super::do_less_equal_w64();
     set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::LESS_EQUAL); });
 }
 
 
 void InputFlow::do_greater_s8()
 {
-    sala::InputFlow::do_greater_s8();
+    Super::do_greater_s8();
     set_post_operation([this]() { insert_black_box_function_binary<std::int8_t>(cps::Comparator::GREATER); });
 }
 
 
 void InputFlow::do_greater_s16()
 {
-    sala::InputFlow::do_greater_s16();
+    Super::do_greater_s16();
     set_post_operation([this]() { insert_black_box_function_binary<std::int16_t>(cps::Comparator::GREATER); });
 }
 
 
 void InputFlow::do_greater_s32()
 {
-    sala::InputFlow::do_greater_s32();
+    Super::do_greater_s32();
     set_post_operation([this]() { insert_black_box_function_binary<std::int32_t>(cps::Comparator::GREATER); });
 }
 
 
 void InputFlow::do_greater_s64()
 {
-    sala::InputFlow::do_greater_s64();
+    Super::do_greater_s64();
     set_post_operation([this]() { insert_black_box_function_binary<std::int64_t>(cps::Comparator::GREATER); });
 }
 
 
 void InputFlow::do_greater_u8()
 {
-    sala::InputFlow::do_greater_u8();
+    Super::do_greater_u8();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint8_t>(cps::Comparator::GREATER); });
 }
 
 
 void InputFlow::do_greater_u16()
 {
-    sala::InputFlow::do_greater_u16();
+    Super::do_greater_u16();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint16_t>(cps::Comparator::GREATER); });
 }
 
 
 void InputFlow::do_greater_u32()
 {
-    sala::InputFlow::do_greater_u32();
+    Super::do_greater_u32();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint32_t>(cps::Comparator::GREATER); });
 }
 
 
 void InputFlow::do_greater_u64()
 {
-    sala::InputFlow::do_greater_u64();
+    Super::do_greater_u64();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint64_t>(cps::Comparator::GREATER); });
 }
 
 
 void InputFlow::do_greater_f32()
 {
-    sala::InputFlow::do_greater_f32();
+    Super::do_greater_f32();
     set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::GREATER); });
 }
 
 
 void InputFlow::do_greater_f64()
 {
-    sala::InputFlow::do_greater_f64();
+    Super::do_greater_f64();
     set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::GREATER); });
 }
 
 
 void InputFlow::do_greater_w32()
 {
-    sala::InputFlow::do_greater_w32();
+    Super::do_greater_w32();
     set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::GREATER); });
 }
 
 
 void InputFlow::do_greater_w64()
 {
-    sala::InputFlow::do_greater_w64();
+    Super::do_greater_w64();
     set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::GREATER); });
 }
 
 
 void InputFlow::do_greater_equal_s8()
 {
-    sala::InputFlow::do_greater_equal_s8();
+    Super::do_greater_equal_s8();
     set_post_operation([this]() { insert_black_box_function_binary<std::int8_t>(cps::Comparator::GREATER_EQUAL); });
 }
 
 
 void InputFlow::do_greater_equal_s16()
 {
-    sala::InputFlow::do_greater_equal_s16();
+    Super::do_greater_equal_s16();
     set_post_operation([this]() { insert_black_box_function_binary<std::int16_t>(cps::Comparator::GREATER_EQUAL); });
 }
 
 
 void InputFlow::do_greater_equal_s32()
 {
-    sala::InputFlow::do_greater_equal_s32();
+    Super::do_greater_equal_s32();
     set_post_operation([this]() { insert_black_box_function_binary<std::int32_t>(cps::Comparator::GREATER_EQUAL); });
 }
 
 
 void InputFlow::do_greater_equal_s64()
 {
-    sala::InputFlow::do_greater_equal_s64();
+    Super::do_greater_equal_s64();
     set_post_operation([this]() { insert_black_box_function_binary<std::int64_t>(cps::Comparator::GREATER_EQUAL); });
 }
 
 
 void InputFlow::do_greater_equal_u8()
 {
-    sala::InputFlow::do_greater_equal_u8();
+    Super::do_greater_equal_u8();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint8_t>(cps::Comparator::GREATER_EQUAL); });
 }
 
 
 void InputFlow::do_greater_equal_u16()
 {
-    sala::InputFlow::do_greater_equal_u16();
+    Super::do_greater_equal_u16();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint16_t>(cps::Comparator::GREATER_EQUAL); });
 }
 
 
 void InputFlow::do_greater_equal_u32()
 {
-    sala::InputFlow::do_greater_equal_u32();
+    Super::do_greater_equal_u32();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint32_t>(cps::Comparator::GREATER_EQUAL); });
 }
 
 
 void InputFlow::do_greater_equal_u64()
 {
-    sala::InputFlow::do_greater_equal_u64();
+    Super::do_greater_equal_u64();
     set_post_operation([this]() { insert_black_box_function_binary<std::uint64_t>(cps::Comparator::GREATER_EQUAL); });
 }
 
 
 void InputFlow::do_greater_equal_f32()
 {
-    sala::InputFlow::do_greater_equal_f32();
+    Super::do_greater_equal_f32();
     set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::GREATER_EQUAL); });
 }
 
 
 void InputFlow::do_greater_equal_f64()
 {
-    sala::InputFlow::do_greater_equal_f64();
+    Super::do_greater_equal_f64();
     set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::GREATER_EQUAL); });
 }
 
 
 void InputFlow::do_greater_equal_w32()
 {
-    sala::InputFlow::do_greater_equal_w32();
+    Super::do_greater_equal_w32();
     set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::GREATER_EQUAL); });
 }
 
 
 void InputFlow::do_greater_equal_w64()
 {
-    sala::InputFlow::do_greater_equal_w64();
+    Super::do_greater_equal_w64();
     set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::GREATER_EQUAL); });
 }
 
 
 void InputFlow::do_equal_u8()
 {
-    sala::InputFlow::do_equal_u8();
+    Super::do_equal_u8();
     set_post_operation([this]() { insert_black_box_function_binary<std::int8_t>(cps::Comparator::EQUAL); }); // indeed signed int!
 }
 
 
 void InputFlow::do_equal_u16()
 {
-    sala::InputFlow::do_equal_u16();
+    Super::do_equal_u16();
     set_post_operation([this]() { insert_black_box_function_binary<std::int16_t>(cps::Comparator::EQUAL); }); // indeed signed int!
 }
 
 
 void InputFlow::do_equal_u32()
 {
-    sala::InputFlow::do_equal_u32();
+    Super::do_equal_u32();
     set_post_operation([this]() { insert_black_box_function_binary<std::int32_t>(cps::Comparator::EQUAL); }); // indeed signed int!
 }
 
 
 void InputFlow::do_equal_u64()
 {
-    sala::InputFlow::do_equal_u64();
+    Super::do_equal_u64();
     set_post_operation([this]() { insert_black_box_function_binary<std::int64_t>(cps::Comparator::EQUAL); }); // indeed signed int!
 }
 
 
 void InputFlow::do_equal_f32()
 {
-    sala::InputFlow::do_equal_f32();
+    Super::do_equal_f32();
     set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::EQUAL); });
 }
 
 
 void InputFlow::do_equal_f64()
 {
-    sala::InputFlow::do_equal_f64();
+    Super::do_equal_f64();
     set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::EQUAL); });
 }
 
 
 void InputFlow::do_equal_w32()
 {
-    sala::InputFlow::do_equal_w32();
+    Super::do_equal_w32();
     set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::EQUAL); });
 }
 
 
 void InputFlow::do_equal_w64()
 {
-    sala::InputFlow::do_equal_w64();
+    Super::do_equal_w64();
     set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::EQUAL); });
 }
 
 
 void InputFlow::do_unequal_u8()
 {
-    sala::InputFlow::do_unequal_u8();
+    Super::do_unequal_u8();
     set_post_operation([this]() { insert_black_box_function_binary<std::int8_t>(cps::Comparator::UNEQUAL); }); // indeed signed int!
 }
 
 
 void InputFlow::do_unequal_u16()
 {
-    sala::InputFlow::do_unequal_u16();
+    Super::do_unequal_u16();
     set_post_operation([this]() { insert_black_box_function_binary<std::int16_t>(cps::Comparator::UNEQUAL); }); // indeed signed int!
 }
 
 
 void InputFlow::do_unequal_u32()
 {
-    sala::InputFlow::do_unequal_u32();
+    Super::do_unequal_u32();
     set_post_operation([this]() { insert_black_box_function_binary<std::int32_t>(cps::Comparator::UNEQUAL); }); // indeed signed int!
 }
 
 
 void InputFlow::do_unequal_u64()
 {
-    sala::InputFlow::do_unequal_u64();
+    Super::do_unequal_u64();
     set_post_operation([this]() { insert_black_box_function_binary<std::int64_t>(cps::Comparator::UNEQUAL); }); // indeed signed int!
 }
 
 
 void InputFlow::do_unequal_f32()
 {
-    sala::InputFlow::do_unequal_f32();
+    Super::do_unequal_f32();
     set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::UNEQUAL); });
 }
 
 
 void InputFlow::do_unequal_f64()
 {
-    sala::InputFlow::do_unequal_f64();
+    Super::do_unequal_f64();
     set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::UNEQUAL); });
 }
 
 
 void InputFlow::do_unequal_w32()
 {
-    sala::InputFlow::do_unequal_w32();
+    Super::do_unequal_w32();
     set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::UNEQUAL); });
 }
 
 
 void InputFlow::do_unequal_w64()
 {
-    sala::InputFlow::do_unequal_w64();
+    Super::do_unequal_w64();
     set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::UNEQUAL); });
 }
 
 
 void InputFlow::do_isnan_w32()
 {
-    sala::InputFlow::do_isnan_w32();
+    Super::do_isnan_w32();
     set_post_operation([this]() { insert_black_box_function_binary<float>(cps::Comparator::UNEQUAL); });
 }
 
 
 void InputFlow::do_isnan_w64()
 {
-    sala::InputFlow::do_isnan_w64();
+    Super::do_isnan_w64();
     set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::UNEQUAL); });
 }
 
@@ -866,7 +873,7 @@ void InputFlow::do_branch()
         if (descriptor.fields.type == 2)
             m_outcomes.branchings.black_box_functions_indices.back().push_back(descriptor.fields.index);
     }
-    sala::InputFlow::do_branch();
+    Super::do_branch();
 }
 
 
