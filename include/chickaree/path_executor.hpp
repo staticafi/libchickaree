@@ -55,7 +55,7 @@ struct  PathExecutor
         {
             // Both vectors always have the same size.
 
-            std::vector<std::vector<std::uint32_t> >  black_box_functions_indices{};
+            std::vector<std::uint32_t>  black_box_functions_indices{};
             std::vector<std::uint32_t>  path_indices{};
         };
 

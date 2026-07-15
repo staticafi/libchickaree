@@ -865,14 +865,17 @@ void InputFlow::do_isnan_w64()
 
 void InputFlow::do_branch()
 {
-    m_outcomes.branchings.black_box_functions_indices.push_back({});
     m_outcomes.branchings.path_indices.push_back(m_outcomes.path_index);
     for (auto const  raw_descriptor : read(operands().front()->start())->descriptors())
     {
         TaintDescriptor const  descriptor{ .value = raw_descriptor };
         if (descriptor.fields.type == 2)
-            m_outcomes.branchings.black_box_functions_indices.back().push_back(descriptor.fields.index);
+        {
+            ASSUMPTION((std::size_t)descriptor.fields.index < m_outcomes.black_box_functions.comparators.size());
+            m_outcomes.branchings.black_box_functions_indices.push_back(descriptor.fields.index);
+        }
     }
+    INVARIANT(m_outcomes.branchings.black_box_functions_indices.size() == m_outcomes.branchings.path_indices.size());
     Super::do_branch();
 }
 
