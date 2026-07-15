@@ -139,11 +139,22 @@ private:
     void start_input_flow(std::size_t const count) { start_input_flow(parameters().front().read<sala::MemPtr>(), count);}
 
     template<typename T>
+    void start_constant_flow(sala::MemPtr dst, sala::MemPtr src, std::size_t count);
+
+    template<typename T>
     void insert_black_box_function_unary();
     template<typename T>
     void insert_black_box_function_binary(cps::Comparator  comparator);
     template<typename T>
     void insert_black_box_function(cps::Comparator  comparator, double  function_value);
+
+    void do_store() override;
+
+    void do_copy_8() override;
+    void do_copy_16() override;
+    void do_copy_32() override;
+    void do_copy_64() override;
+    void do_copy() override;
 
     void do_less_s8() override;
     void do_less_s16() override;
@@ -267,6 +278,30 @@ void InputFlow::start_input_flow(sala::MemPtr const ptr, std::size_t const count
 
 
 template<typename T>
+void InputFlow::start_constant_flow(sala::MemPtr const dst, sala::MemPtr const src, std::size_t const count)
+{
+    // We process 'count' constants, each of size 'sizeof(T)' bytes.
+    for (std::size_t i = 0ULL; i != count; ++i)
+    {
+        // Beside starting the flow we also record the tracked constants.
+
+        m_outcomes.constants.path_indices.push_back(m_outcomes.path_index);
+        m_outcomes.constants.variables.push_back(cps::Variable( *(((T const*)src) + i)) );
+
+        // And we start the actual constant tracking.
+
+        TaintDescriptor const  descriptor{
+            .fields = {
+                .type = 1U, // Tracking the constant.
+                .index = (std::uint32_t)m_outcomes.constants.variables.size() - 1U
+            }
+        };
+        start((sala::MemPtr)(((T*)dst) + i), sizeof(T), descriptor.value);
+    }
+}
+
+
+template<typename T>
 void InputFlow::insert_black_box_function_unary()
 {
     insert_black_box_function<T>(cps::Comparator::UNEQUAL, (double)operands().back()->read<T>());
@@ -331,6 +366,75 @@ void InputFlow::insert_black_box_function(cps::Comparator const  comparator, dou
         }
     };
     start_extend(operands().front()->start(), descriptor.value);
+}
+
+
+void InputFlow::do_store()
+{
+    Super::do_store();
+    if (state().current_instruction().descriptors().back() == sala::Instruction::Descriptor::CONSTANT)
+        set_post_operation([this]() { 
+            switch (operands().back()->count())
+            {
+                case 1ULL:
+                    start_constant_flow<std::int8_t>(operands().front()->read<sala::MemPtr>(), operands().back()->start(), 1ULL);
+                    break;
+                case 2ULL:
+                    start_constant_flow<std::int16_t>(operands().front()->read<sala::MemPtr>(), operands().back()->start(), 1ULL);
+                    break;
+                case 4ULL:
+                    start_constant_flow<std::int32_t>(operands().front()->read<sala::MemPtr>(), operands().back()->start(), 1ULL);
+                    break;
+                case 8ULL:
+                    start_constant_flow<std::int64_t>(operands().front()->read<sala::MemPtr>(), operands().back()->start(), 1ULL);
+                    break;
+                default:
+                    start_constant_flow<std::int8_t>(operands().front()->read<sala::MemPtr>(),
+                                                    operands().back()->start(),
+                                                    operands().back()->count());
+                    break;
+            }
+        });
+}
+
+
+void InputFlow::do_copy_8()
+{
+    Super::do_copy_8();
+    if (state().current_instruction().descriptors().back() == sala::Instruction::Descriptor::CONSTANT)
+        set_post_operation([this]() { start_constant_flow<std::int8_t>(operands().front()->start(), operands().back()->start(), 1ULL); });
+}
+
+
+void InputFlow::do_copy_16()
+{
+    Super::do_copy_16();
+    if (state().current_instruction().descriptors().back() == sala::Instruction::Descriptor::CONSTANT)
+        set_post_operation([this]() { start_constant_flow<std::int16_t>(operands().front()->start(), operands().back()->start(), 1ULL); });
+}
+
+
+void InputFlow::do_copy_32()
+{
+    Super::do_copy_32();
+    if (state().current_instruction().descriptors().back() == sala::Instruction::Descriptor::CONSTANT)
+        set_post_operation([this]() { start_constant_flow<std::int32_t>(operands().front()->start(), operands().back()->start(), 1ULL); });
+}
+
+
+void InputFlow::do_copy_64()
+{
+    Super::do_copy_64();
+    if (state().current_instruction().descriptors().back() == sala::Instruction::Descriptor::CONSTANT)
+        set_post_operation([this]() { start_constant_flow<std::int64_t>(operands().front()->start(), operands().back()->start(), 1ULL); });
+}
+
+
+void InputFlow::do_copy()
+{
+    Super::do_copy();
+    if (state().current_instruction().descriptors().back() == sala::Instruction::Descriptor::CONSTANT)
+        set_post_operation([this]() { start_constant_flow<std::int8_t>(operands().front()->start(), operands().back()->start(), operands().front()->count()); });
 }
 
 
