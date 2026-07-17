@@ -229,7 +229,7 @@ private:
 
 
 InputFlow::InputFlow(sala::ExecState* const  state, sala::ControlFlowGraph const&  cfg, PathExecutor::RunOutcome&  outcomes)
-    : sala::InputFlowWithUpdates{ state }
+    : sala::InputFlowWithUpdates{ state, false }
     , m_cfg{ cfg }
     , m_outcomes{ outcomes }
 {
@@ -340,15 +340,26 @@ void InputFlow::insert_black_box_function(cps::Comparator const  comparator, dou
     });
     m_outcomes.black_box_functions.basic_blocks_hit_counts.push_back({});
     {
-        UpdatesHitCountsPtr const updates_hit_counts = read_updates(operands().front()->start());
-        if (updates_hit_counts != nullptr)
-            for (auto const& id_and_count : *updates_hit_counts)
+        UpdatesHitsPtr const updates_hits = read_updates(operands().front()->start());
+        if (updates_hits != nullptr)
+        {
+            std::unordered_map<
+                    std::uint32_t,  // Index of the basic block in the control flow graph.
+                    std::unordered_set<std::uint64_t>   // The 'hits' of 'updates' in the basic block.
+                    > basic_block_hits;
+            for (auto const& id_and_hits : *updates_hits)
             {
                 std::uint32_t const  node_index{
-                    m_cfg.bb_of_instruction(id_and_count.first.func, id_and_count.first.block, id_and_count.first.instr)
+                    m_cfg.bb_of_instruction(id_and_hits.first.func, id_and_hits.first.block, id_and_hits.first.instr)
                 };
-                m_outcomes.black_box_functions.basic_blocks_hit_counts.back().insert({ node_index, id_and_count.second });
+                basic_block_hits[node_index].insert(id_and_hits.second.begin(), id_and_hits.second.end());
             }
+            for (auto const& bb_and_hits : basic_block_hits)
+                m_outcomes.black_box_functions.basic_blocks_hit_counts.back().insert({
+                        bb_and_hits.first,
+                        (std::uint32_t)bb_and_hits.second.size()
+                        });
+        }
     }
     m_outcomes.black_box_functions.path_indices.push_back(m_outcomes.path_index);
 }
