@@ -5,6 +5,7 @@
 #   include <sala/navigation_graph.hpp>
 #   include <chickaree/path_tree.hpp>
 #   include <chickaree/path.hpp>
+#   include <chickaree/path_executor.hpp>
 #   include <cstdint>
 #   include <chrono>
 
@@ -36,6 +37,7 @@ struct Solver
 private:
 
     bool  update_resource_limits();
+    void  update_unreachable_tree_nodes(PathExecutor::RunOutcome const&  outcomes);
 
     // Data common for all calls of run method.
 

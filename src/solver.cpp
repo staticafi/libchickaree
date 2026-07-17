@@ -1,6 +1,5 @@
 #include <chickaree/solver.hpp>
 #include <chickaree/strategy.hpp>
-#include <chickaree/path_executor.hpp>
 #include <cps/solver.hpp>
 #include <cps/evaluation_cache.hpp>
 #include <utility/assumptions.hpp>
@@ -39,6 +38,41 @@ bool  Solver::update_resource_limits()
     m_report.memout = m_remaining_bytes <= 0LL;
 
     return !m_report.timeout && !m_report.memout;
+}
+
+
+void  Solver::update_unreachable_tree_nodes(PathExecutor::RunOutcome const&  outcomes)
+{
+    for (std::size_t i = 0ULL; i != outcomes.branchings.black_box_functions_indices.size(); ++i)
+        if (outcomes.black_box_functions.inputs_indices.at(i).empty())
+        {
+            std::uint32_t const path_index{ outcomes.black_box_functions.path_indices.at(i) };
+            INVARIANT(path_index == outcomes.branchings.path_indices.at(i));
+
+            if (outcomes.diverged && path_index + 1U == outcomes.path_index)
+            {
+                m_tree.flags(m_path.at(outcomes.path_index)).unreachable = 1;
+                continue;
+            }
+
+            std::uint32_t const tree_branch_node_index{ m_path.at(path_index) };
+
+            sala::NavigationGraph::Node const& graph_branch_node{ m_graph.node(m_tree.graph_node_index(tree_branch_node_index)) };
+            INVARIANT(graph_branch_node.successors.size() == 2ULL);
+
+            std::uint32_t const graph_node_index{ m_tree.graph_node_index(m_path.at(path_index + 1U)) };
+            std::uint32_t const other_graph_node_index{ 
+                    graph_branch_node.successors.front() == graph_node_index
+                        ? graph_branch_node.successors.back()
+                        : graph_branch_node.successors.front()
+                    };
+
+            std::uint32_t other_tree_node_index{ m_tree.find_child(tree_branch_node_index, other_graph_node_index) };
+            if (other_tree_node_index == PathTree::INVALID_INDEX)
+                other_tree_node_index = m_tree.insert_child(tree_branch_node_index, other_graph_node_index, 0);
+
+            m_tree.set_unreachable(other_tree_node_index);
+        }
 }
 
 
@@ -104,16 +138,19 @@ void  Solver::run(
         std::vector<cps::Variable>  input;
 
         executor.run(input, m_remaining_seconds, m_remaining_bytes);
-
-        if ((std::size_t)executor.run_outcome().path_index == m_path.size())
-        {
-            m_success = true;
-            return;
-        }
+        update_unreachable_tree_nodes(executor.run_outcome());
 
         cps::EvaluationCache cache;
-        while ((std::size_t)(executor.run_outcome().path_index + 1U) < m_path.size())
+        while (true)
         {
+            if (!executor.run_outcome().diverged)
+            {
+                m_success = true;
+                return;
+            }
+            if (m_tree.unreachable(m_path.at(executor.run_outcome().path_index)))
+                break;
+
             cps::Solver solver{
                     executor.run_outcome().black_box_functions.inputs_indices,
                     executor.run_outcome().black_box_functions.comparators,
@@ -138,6 +175,8 @@ void  Solver::run(
                         return;
 
                     executor.run(input, m_remaining_seconds, m_remaining_bytes);
+                    update_unreachable_tree_nodes(executor.run_outcome());
+
                     output = &executor.run_outcome().black_box_functions.output;
 
                     cache.insert(input, *output);
@@ -151,19 +190,10 @@ void  Solver::run(
 
             if (!solver.success())
             {
-                INVARIANT((std::size_t)(executor.run_outcome().path_index + 1U) < m_path.size());
                 m_report.cps_failure = true;
-
-                m_tree.flags(m_path.at(executor.run_outcome().path_index + 1U)).unreachable = 1;
-
+                m_tree.set_unreachable(m_path.at(executor.run_outcome().path_index));
                 break;
             }
-        }
-
-        if ((std::size_t)(executor.run_outcome().path_index + 1U) == m_path.size())
-        {
-            m_success = true;
-            return;
         }
     }
 }
