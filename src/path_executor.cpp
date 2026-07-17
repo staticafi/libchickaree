@@ -931,6 +931,7 @@ struct Interpreter final : public sala::Interpreter
 
 private:
 
+    void on_stack_initialized() override;
     void on_basic_block_changed();
 
     void do_jump() override;
@@ -960,8 +961,15 @@ Interpreter::Interpreter(
     , m_tree{ tree }
     , m_path{ path }
     , m_outcomes{ outcomes }
-    , m_index{ 1U } // The first basic block in the path is program entry point, which is reached by default. So, we wait for next one.
+    , m_index{ 0U }
 {}
+
+
+void Interpreter::on_stack_initialized()
+{
+    if (state().stage() == sala::ExecState::Stage::EXECUTING)
+        on_basic_block_changed(); // This is necessary for the case when the tree root is the target basic block.
+}
 
 
 void Interpreter::on_basic_block_changed()
@@ -969,26 +977,31 @@ void Interpreter::on_basic_block_changed()
     if (state().stage() != sala::ExecState::Stage::EXECUTING)
         return;
 
-    sala::ControlFlowGraph::Node const& n = m_cfg.node(m_tree.graph_node_index(m_path.at(m_index)));
+    m_outcomes.path_index = m_index;
+    ++m_index;
+
+    sala::ControlFlowGraph::Node const& n = m_cfg.node(m_tree.graph_node_index(m_path.at(m_outcomes.path_index)));
     if (n.function != state().stack_top().function_index() || n.basic_block != ip().block())
     {
         state().set_stage(sala::ExecState::Stage::FINISHED);
         state().set_termination(
             sala::ExecState::Termination::NORMAL,
             "chickaree::Interpreter",
-            state().make_error_message("The execution has diverged from the path at index " + std::to_string(m_index) + ".")
+            state().make_error_message("The execution has diverged from the path at index " + std::to_string(m_outcomes.path_index) + ".")
             );
+        return;
     }
-    m_outcomes.path_index = m_index;
-    ++m_index;
     if ((std::size_t)m_index == m_path.size())
     {
+        m_outcomes.diverged = false;
+
         state().set_stage(sala::ExecState::Stage::FINISHED);
         state().set_termination(
             sala::ExecState::Termination::NORMAL,
             "chickaree::Interpreter",
             state().make_error_message("Reached the end of the path.")
             );
+        return;
     }
 }
 

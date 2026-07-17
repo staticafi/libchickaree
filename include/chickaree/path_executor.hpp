@@ -63,8 +63,25 @@ struct  PathExecutor
         Termination  termination{ Termination::UNKNOWN };
         std::string  message{};
 
-        // The index of path record at which the execution terminated. 
+        // The index of path record at which the execution terminated.
+        // It thus represent the count of fully executed basic blocks
+        // in the path. The field is is always less that the size of
+        // the path. The last basic block in the path (the target) is
+        // is never executed (the execution stops when entering that
+        // basic block - right before the first instruction). All fields
+        // in this struct are valid only for path indices less than
+        // this field.
         std::uint32_t  path_index{ 0U };
+
+        // When it is false, then the last basic block in the path (the
+        // target) was reached. The field 'path_index' is the index
+        // of that last element in the path.
+        // When it is true, then the last basic block in the path (the
+        // target) was NOT reached. The field 'path_index' is the index
+        // of the first element in the path, which was not executed, i.e.,
+        // the sibling of that node was reached by the execution instead
+        // of the one in the path.
+        bool diverged{ true };
 
         // The input read during the execution.
         Variables  inputs{};
