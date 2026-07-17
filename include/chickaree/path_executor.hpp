@@ -51,14 +51,6 @@ struct  PathExecutor
             std::vector<std::uint32_t>  path_indices{};
         };
 
-        struct  Branchings
-        {
-            // Both vectors always have the same size.
-
-            std::vector<std::uint32_t>  black_box_functions_indices{};
-            std::vector<std::uint32_t>  path_indices{};
-        };
-
         // Results from the sala::ExecState
         Termination  termination{ Termination::UNKNOWN };
         std::string  message{};
@@ -91,9 +83,6 @@ struct  PathExecutor
 
         // Black box functions evaluated during the execution.
         BlackBoxFunctions  black_box_functions{};
-
-        // Branchings taken during the execution.
-        Branchings  branchings{};
     };
 
     PathExecutor(

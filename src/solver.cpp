@@ -43,11 +43,10 @@ bool  Solver::update_resource_limits()
 
 void  Solver::update_unreachable_tree_nodes(PathExecutor::RunOutcome const&  outcomes)
 {
-    for (std::size_t i = 0ULL; i != outcomes.branchings.black_box_functions_indices.size(); ++i)
+    for (std::size_t i = 0ULL; i != outcomes.black_box_functions.path_indices.size(); ++i)
         if (outcomes.black_box_functions.inputs_indices.at(i).empty())
         {
             std::uint32_t const path_index{ outcomes.black_box_functions.path_indices.at(i) };
-            INVARIANT(path_index == outcomes.branchings.path_indices.at(i));
 
             if (outcomes.diverged && path_index + 1U == outcomes.path_index)
             {

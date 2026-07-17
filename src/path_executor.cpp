@@ -120,15 +120,12 @@ private:
                 // Meaning of values:
                 // 0 - Taint source is input.
                 // 1 - Taint source is a constant (from constant segment).
-                // 2 - Taint source is bool value resulting from evaluation of a black box function.
-                // 3 - Not used (invalid value).
-                type  :  2,
+                type  :  1,
 
                 // Index to the vector in outcomes, depending on the type:
                 // type == 0 -> m_outcomes.black_box_functions.inputs_indices.
                 // type == 1 -> m_outcomes.black_box_functions.constants_indices.
-                // type == 2 -> A common index to all vectors in m_outcomes.black_box_functions.black_box_functions.
-                index : 30;
+                index : 31;
         } fields;
     };
 
@@ -228,8 +225,6 @@ private:
 
     void do_isnan_w32() override;
     void do_isnan_w64() override;
-
-    void do_branch() override;
 };
 
 
@@ -334,8 +329,7 @@ void InputFlow::insert_black_box_function(cps::Comparator const  comparator, dou
                 m_outcomes.black_box_functions.constants_indices.back().push_back(descriptor.fields.index);
                 break;
             default:
-                // We can ignore type == 2 here, because the taint (descriptors) from the
-                // black box function at descriptor.fields.index are propagated as well.
+                UNREACHABLE();
                 break;
         }
     }
@@ -357,15 +351,6 @@ void InputFlow::insert_black_box_function(cps::Comparator const  comparator, dou
             }
     }
     m_outcomes.black_box_functions.path_indices.push_back(m_outcomes.path_index);
-
-    // We must start taint-flow for the bool value of the evaluated black-box function.
-    TaintDescriptor const  descriptor{
-        .fields = {
-            .type = 2U, // Tracking bool value.
-            .index = (std::uint32_t)m_outcomes.black_box_functions.comparators.size() - 1U
-        }
-    };
-    start_extend(operands().front()->start(), descriptor.value);
 }
 
 
@@ -897,23 +882,6 @@ void InputFlow::do_isnan_w64()
 {
     Super::do_isnan_w64();
     set_post_operation([this]() { insert_black_box_function_binary<double>(cps::Comparator::UNEQUAL); });
-}
-
-
-void InputFlow::do_branch()
-{
-    m_outcomes.branchings.path_indices.push_back(m_outcomes.path_index);
-    for (auto const  raw_descriptor : read(operands().front()->start())->descriptors())
-    {
-        TaintDescriptor const  descriptor{ .value = raw_descriptor };
-        if (descriptor.fields.type == 2)
-        {
-            ASSUMPTION((std::size_t)descriptor.fields.index < m_outcomes.black_box_functions.comparators.size());
-            m_outcomes.branchings.black_box_functions_indices.push_back(descriptor.fields.index);
-        }
-    }
-    INVARIANT(m_outcomes.branchings.black_box_functions_indices.size() == m_outcomes.branchings.path_indices.size());
-    Super::do_branch();
 }
 
 
