@@ -68,6 +68,8 @@ struct  PathTree
     std::uint32_t  stack_entry(std::uint32_t const  node_index) const { return node(node_index).stack_entry; }
     Node::Flags const& flags(std::uint32_t const  node_index) const { return node(node_index).flags; }
     Node::Flags&  flags(std::uint32_t const  node_index) { return m_nodes.at(node_index).flags; }
+    bool  unreachable(std::uint32_t const  node_index) const { return flags(node_index).unreachable == 1U; }
+    void  set_unreachable(std::uint32_t const  node_index) { flags(node_index).unreachable = 1U; }
 
     // The method allows to jump from the passed stack entry node to the next
     // one (i.e., one level deeper in the call-stack). The parameter passed to
