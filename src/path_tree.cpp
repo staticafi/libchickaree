@@ -1,4 +1,5 @@
 #include <chickaree/path_tree.hpp>
+#include <utility/assumptions.hpp>
 
 namespace chickaree {
 
@@ -41,16 +42,18 @@ std::uint32_t  PathTree::insert_child(
         std::int32_t const  stack_depth_change
         )
 {
+    ASSUMPTION(std::abs(stack_depth_change) < 2);
+
     std::uint32_t const  child_node_index{ (std::uint32_t)m_nodes.size() };
 
     std::uint32_t  stack_entry_index;
     {
         if (stack_depth_change == 0)
             stack_entry_index = stack_entry(node_index);
-        else if (stack_depth_change > 0)
+        else if (stack_depth_change == 1)
             stack_entry_index = child_node_index;
         else
-            stack_entry_index = next_stack_entry(node_index);
+            stack_entry_index = next_stack_entry(stack_entry(node_index));
     }
     
     m_nodes.push_back(Node {
