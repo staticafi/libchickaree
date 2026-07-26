@@ -31,7 +31,8 @@ struct  PathTree
         // All children form a single-linked list via
         // sibling field, as described above. Look into
         // implementation of find_child method to see
-        // how children can be enumerated.
+        // how children can be enumerated. Each leaf node
+        // has this field set to INVALID_INDEX.
         std::uint32_t  child;
 
         // Each node corresponds with with some call-stack frame.
@@ -47,6 +48,7 @@ struct  PathTree
         struct Flags
         {
             std::uint32_t  unreachable : 1;
+            std::uint32_t  executed : 1;
         };
 
         Flags  flags;
@@ -70,6 +72,8 @@ struct  PathTree
     Node::Flags&  flags(std::uint32_t const  node_index) { return m_nodes.at(node_index).flags; }
     bool  unreachable(std::uint32_t const  node_index) const { return flags(node_index).unreachable == 1U; }
     void  set_unreachable(std::uint32_t const  node_index) { flags(node_index).unreachable = 1U; }
+    bool  executed(std::uint32_t const  node_index) const { return flags(node_index).executed == 1U; }
+    void  set_executed(std::uint32_t const  node_index) { flags(node_index).executed = 1U; }
 
     // The method allows to jump from the passed stack entry node to the next
     // one (i.e., one level deeper in the call-stack). The parameter passed to

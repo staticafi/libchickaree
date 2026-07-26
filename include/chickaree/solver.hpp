@@ -37,6 +37,7 @@ struct Solver
 private:
 
     bool  update_resource_limits();
+    void  update_executed_tree_nodes(PathExecutor::RunOutcome const&  outcomes);
     void  update_unreachable_tree_nodes(PathExecutor::RunOutcome const&  outcomes);
 
     // Data common for all calls of run method.

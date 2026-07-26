@@ -118,7 +118,7 @@ std::uint32_t  find_path(
         QueueRecord  record = queue.top();
         queue.pop();
 
-        if (tree.flags(record.tree_node_index).unreachable == 1)
+        if (tree.unreachable(record.tree_node_index))
             continue;
 
         std::uint32_t const  graph_node_index{ tree.graph_node_index(record.tree_node_index) };

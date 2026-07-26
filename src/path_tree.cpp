@@ -11,7 +11,10 @@ PathTree::PathTree(std::uint32_t  start_graph_node_index)
         .sibling = INVALID_INDEX,
         .child = INVALID_INDEX,
         .stack_entry = 0U,   // This node must correspond to the initial stack frame.
-        .flags{ .unreachable = 0 }
+        .flags{
+            .unreachable = 0,
+            .executed = 0
+            }
     }}
 {}
 
@@ -62,7 +65,10 @@ std::uint32_t  PathTree::insert_child(
         .sibling = INVALID_INDEX,
         .child = INVALID_INDEX,
         .stack_entry = stack_entry_index,
-        .flags{ .unreachable = 0 }
+        .flags{
+            .unreachable = 0,
+            .executed = 0
+            }
     });
 
     Node&  n = m_nodes.at(node_index);

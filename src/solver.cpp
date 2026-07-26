@@ -41,6 +41,18 @@ bool  Solver::update_resource_limits()
 }
 
 
+void  Solver::update_executed_tree_nodes(PathExecutor::RunOutcome const&  outcomes)
+{
+    for (std::uint32_t path_index = outcomes.path_index; path_index != 0U; --path_index)
+    {
+        std::uint32_t const tree_node_index{ m_path.at(path_index - 1U) };
+        if (m_tree.executed(tree_node_index))
+            break;
+        m_tree.set_executed(tree_node_index);
+    }
+}
+
+
 void  Solver::update_unreachable_tree_nodes(PathExecutor::RunOutcome const&  outcomes)
 {
     for (std::size_t i = 0ULL; i != outcomes.black_box_functions.path_indices.size(); ++i)
@@ -50,7 +62,7 @@ void  Solver::update_unreachable_tree_nodes(PathExecutor::RunOutcome const&  out
 
             if (outcomes.diverged && path_index + 1U == outcomes.path_index)
             {
-                m_tree.flags(m_path.at(outcomes.path_index)).unreachable = 1;
+                m_tree.set_unreachable(m_path.at(outcomes.path_index));
                 continue;
             }
 
@@ -137,6 +149,7 @@ void  Solver::run(
         std::vector<cps::Variable>  input;
 
         executor.run(input, m_remaining_seconds, m_remaining_bytes);
+        update_executed_tree_nodes(executor.run_outcome());
         update_unreachable_tree_nodes(executor.run_outcome());
 
         cps::EvaluationCache cache;
@@ -174,6 +187,7 @@ void  Solver::run(
                         return;
 
                     executor.run(input, m_remaining_seconds, m_remaining_bytes);
+                    update_executed_tree_nodes(executor.run_outcome());
                     update_unreachable_tree_nodes(executor.run_outcome());
 
                     output = &executor.run_outcome().black_box_functions.output;
