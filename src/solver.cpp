@@ -2,6 +2,7 @@
 #include <chickaree/strategy.hpp>
 #include <cps/solver.hpp>
 #include <cps/evaluation_cache.hpp>
+#include <utility/visualizer_breakpoint.hpp>
 #include <utility/assumptions.hpp>
 #include <utility/invariants.hpp>
 
@@ -151,6 +152,7 @@ void  Solver::run(
         executor.run(input, m_remaining_seconds, m_remaining_bytes);
         update_executed_tree_nodes(executor.run_outcome());
         update_unreachable_tree_nodes(executor.run_outcome());
+        VISUALIZER_BREAKPOINT();
 
         cps::EvaluationCache cache;
         while (true)
@@ -158,10 +160,14 @@ void  Solver::run(
             if (!executor.run_outcome().diverged)
             {
                 m_success = true;
+                VISUALIZER_BREAKPOINT();
                 return;
             }
             if (m_tree.unreachable(m_path.at(executor.run_outcome().path_index)))
+            {
+                VISUALIZER_BREAKPOINT();
                 break;
+            }
 
             cps::Solver solver{
                     executor.run_outcome().black_box_functions.inputs_indices,
@@ -189,6 +195,7 @@ void  Solver::run(
                     executor.run(input, m_remaining_seconds, m_remaining_bytes);
                     update_executed_tree_nodes(executor.run_outcome());
                     update_unreachable_tree_nodes(executor.run_outcome());
+                    VISUALIZER_BREAKPOINT();
 
                     output = &executor.run_outcome().black_box_functions.output;
 
@@ -205,6 +212,7 @@ void  Solver::run(
             {
                 m_report.cps_failure = true;
                 m_tree.set_unreachable(m_path.at(executor.run_outcome().path_index));
+                VISUALIZER_BREAKPOINT();
                 break;
             }
         }
