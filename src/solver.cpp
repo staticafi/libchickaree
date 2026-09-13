@@ -163,6 +163,12 @@ void  Solver::run(
                 VISUALIZER_BREAKPOINT();
                 return;
             }
+            if (executor.run_outcome().black_box_functions.inputs_indices.back().empty())
+            {
+                m_tree.set_unreachable(m_path.at(executor.run_outcome().path_index));
+                VISUALIZER_BREAKPOINT();
+                break;
+            }
             if (m_tree.unreachable(m_path.at(executor.run_outcome().path_index)))
             {
                 VISUALIZER_BREAKPOINT();
