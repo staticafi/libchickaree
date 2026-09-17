@@ -1,5 +1,4 @@
 #include <chickaree/path_tree.hpp>
-#include <utility/assumptions.hpp>
 
 namespace chickaree {
 
