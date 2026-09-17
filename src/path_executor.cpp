@@ -55,7 +55,7 @@ InputProvider::InputProvider(
 #   define REGISTER_INPUT_READER(FN_NAME, IMPL) externals.register_code(#FN_NAME, [this]() { IMPL; })
 #   define REGISTER_INPUT_READER_VIA_TYPE(FN_NAME, TYPE) REGISTER_INPUT_READER(FN_NAME, read_input<TYPE>() )
 
-    REGISTER_INPUT_READER_VIA_TYPE(__fizzer_private_io_model_cmdline_read_argc, std::int32_t);
+    REGISTER_INPUT_READER_VIA_TYPE(__fizzer_private_io_model_cmdline_read_argc, std::uint8_t);
     REGISTER_INPUT_READER_VIA_TYPE(__fizzer_private_io_model_cmdline_read_char, std::int8_t);
     REGISTER_INPUT_READER_VIA_TYPE(__VERIFIER_nondet_bool, bool);
     REGISTER_INPUT_READER_VIA_TYPE(__VERIFIER_nondet_char, std::int8_t);
@@ -233,7 +233,7 @@ InputFlow::InputFlow(sala::ExecState* const  state, sala::ControlFlowGraph const
     , m_cfg{ cfg }
     , m_outcomes{ outcomes }
 {
-    REGISTER_EXTERN_FUNCTION_PROCESSOR(__fizzer_private_io_model_cmdline_read_argc, this->start_input_flow(sizeof(natural_8_bit)) );
+    REGISTER_EXTERN_FUNCTION_PROCESSOR(__fizzer_private_io_model_cmdline_read_argc, this->start_input_flow(sizeof(std::uint8_t)) );
     REGISTER_EXTERN_FUNCTION_PROCESSOR(__fizzer_private_io_model_cmdline_read_char, this->start_input_flow(sizeof(char)) );
 
     REGISTER_EXTERN_FUNCTION_PROCESSOR(__VERIFIER_nondet_bool, this->start_input_flow(sizeof(bool)) );
