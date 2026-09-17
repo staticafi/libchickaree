@@ -175,6 +175,8 @@ void  Solver::run(
                 break;
             }
 
+            std::uint32_t const  tgt_path_index{ executor.run_outcome().path_index };
+
             cps::Solver solver{
                     executor.run_outcome().black_box_functions.inputs_indices,
                     executor.run_outcome().black_box_functions.comparators,
@@ -217,7 +219,7 @@ void  Solver::run(
             if (!solver.success())
             {
                 m_report.cps_failure = true;
-                m_tree.set_unreachable(m_path.at(executor.run_outcome().path_index));
+                m_tree.set_unreachable(m_path.at(tgt_path_index));
                 VISUALIZER_BREAKPOINT();
                 break;
             }
