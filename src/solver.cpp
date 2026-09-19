@@ -14,6 +14,8 @@ Solver::Solver(sala::Program const&  program, sala::NavigationGraph const&  grap
     , m_graph{ graph }
     , m_tree{ tree }
 
+    , m_path_executor{ nullptr }
+
     , m_target_function{ 0U }
     , m_target_basic_block{ 0U }
 
@@ -146,6 +148,7 @@ void  Solver::run(
             return;
 
         PathExecutor  executor{ m_program, m_graph, m_tree, m_path };
+        PathExecutorCapture const _ { this, &executor }; // Only to capture and release pointer to the executor.
 
         std::vector<cps::Variable>  input;
 

@@ -34,6 +34,8 @@ struct Solver
     Report const&  report() const { return m_report; }
     Path const&  path() const { return m_path; }
 
+    PathExecutor const*  get_path_executor() const { return m_path_executor; }
+
 private:
 
     bool  update_resource_limits();
@@ -48,6 +50,16 @@ private:
 
     // Data related to the current call of run method.
     // They are cleared in the begin of the run method.
+
+    struct PathExecutorCapture
+    {
+        PathExecutorCapture(Solver* solver, PathExecutor*  executor) : solver_{ solver }, executor_{ executor } { solver_->m_path_executor = executor_; }
+        ~PathExecutorCapture() { solver_->m_path_executor = nullptr; }
+        Solver*  solver_;
+        PathExecutor*  executor_;
+    };
+
+    PathExecutor*  m_path_executor;
 
     std::uint32_t  m_target_function;
     std::uint32_t  m_target_basic_block;
