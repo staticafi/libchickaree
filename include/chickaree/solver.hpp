@@ -6,6 +6,8 @@
 #   include <chickaree/path_tree.hpp>
 #   include <chickaree/path.hpp>
 #   include <chickaree/path_executor.hpp>
+#   include <chickaree/data_table.hpp>
+#   include <unordered_map>
 #   include <cstdint>
 #   include <chrono>
 
@@ -36,11 +38,15 @@ struct Solver
 
     PathExecutor const*  get_path_executor() const { return m_path_executor; }
 
+    std::unordered_map<std::uint32_t, DataTable> const& data_tables() const { return m_data_tables; }
+
 private:
 
     bool  update_resource_limits();
     void  update_executed_tree_nodes(PathExecutor::RunOutcome const&  outcomes);
     void  update_unreachable_tree_nodes(PathExecutor::RunOutcome const&  outcomes);
+    void  extend_data_tables(PathExecutor::RunOutcome const&  outcomes);
+    std::uint32_t  path_index_to_graph_node_index(std::uint32_t path_index) const;
 
     // Data common for all calls of run method.
 
@@ -60,6 +66,8 @@ private:
     };
 
     PathExecutor*  m_path_executor;
+
+    std::unordered_map<std::uint32_t, DataTable>  m_data_tables;
 
     std::uint32_t  m_target_function;
     std::uint32_t  m_target_basic_block;

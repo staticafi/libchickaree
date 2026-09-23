@@ -16,6 +16,8 @@ Solver::Solver(sala::Program const&  program, sala::NavigationGraph const&  grap
 
     , m_path_executor{ nullptr }
 
+    , m_data_tables{}
+
     , m_target_function{ 0U }
     , m_target_basic_block{ 0U }
 
@@ -90,6 +92,54 @@ void  Solver::update_unreachable_tree_nodes(PathExecutor::RunOutcome const&  out
 }
 
 
+void  Solver::extend_data_tables(PathExecutor::RunOutcome const&  outcomes)
+{
+    for (std::size_t i = 0ULL; i != outcomes.black_box_functions.path_indices.size(); ++i)
+    {
+        DataTable& table = m_data_tables.insert({
+            path_index_to_graph_node_index(outcomes.black_box_functions.path_indices.at(i)),
+            DataTable{ outcomes.black_box_functions.comparators.at(i) }
+        }).first->second;
+
+        std::vector<DataTable::Variable> inputs;
+        for (std::size_t idx : outcomes.black_box_functions.inputs_indices.at(i))
+            inputs.push_back(DataTable::Variable{
+                .graph_node_index = path_index_to_graph_node_index(outcomes.inputs.path_indices.at(idx)),
+                .value = outcomes.inputs.variables.at(idx)
+            });
+
+        std::vector<DataTable::Variable> constants;
+        for (std::uint32_t idx : outcomes.black_box_functions.constants_indices.at(i))
+            constants.push_back(DataTable::Variable{
+                .graph_node_index = path_index_to_graph_node_index(outcomes.constants.path_indices.at(idx)),
+                .value = outcomes.constants.variables.at(idx)
+            });
+
+        std::vector<DataTable::Variable> counters;
+        for (auto const& bb_and_count : outcomes.black_box_functions.basic_blocks_hit_counts.at(i))
+            counters.push_back(DataTable::Variable{
+                .graph_node_index = bb_and_count.first,
+                .value = cps::Variable(bb_and_count.second)
+            });
+
+        table.extend(DataTable::Row{
+            .evaluation = outcomes.black_box_functions.output.at(i),
+            .inputs = inputs,
+            .constants = constants,
+            .counters = counters
+        });
+    }
+}
+
+
+std::uint32_t  Solver::path_index_to_graph_node_index(std::uint32_t path_index) const
+{
+    std::uint32_t const tree_branch_node_index{ m_path.at(path_index) };
+    std::uint32_t const graph_node_index{ m_tree.graph_node_index(tree_branch_node_index) };
+    return graph_node_index;
+}
+
+
 void  Solver::run(
         std::uint32_t const  target_function,
         std::uint32_t const  target_basic_block,
@@ -155,6 +205,7 @@ void  Solver::run(
         executor.run(input, m_remaining_seconds, m_remaining_bytes);
         update_executed_tree_nodes(executor.run_outcome());
         update_unreachable_tree_nodes(executor.run_outcome());
+        extend_data_tables(executor.run_outcome());
         VISUALIZER_BREAKPOINT();
 
         cps::EvaluationCache cache;
@@ -206,6 +257,7 @@ void  Solver::run(
                     executor.run(input, m_remaining_seconds, m_remaining_bytes);
                     update_executed_tree_nodes(executor.run_outcome());
                     update_unreachable_tree_nodes(executor.run_outcome());
+                    extend_data_tables(executor.run_outcome());
                     VISUALIZER_BREAKPOINT();
 
                     output = &executor.run_outcome().black_box_functions.output;
