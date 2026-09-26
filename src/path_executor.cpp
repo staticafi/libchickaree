@@ -27,7 +27,7 @@ struct  InputProvider
     InputProvider(
             std::vector<cps::Variable> const&  input,
             sala::ExternCodeCStd&  externals,
-            PathExecutor::RunOutcome&  outcomes
+            RunOutcomePtr  outcomes
             );
 
     template<typename T>
@@ -38,14 +38,14 @@ private:
     std::vector<cps::Variable> const&  m_input;
     std::uint32_t  m_index;
     sala::ExecState const&  m_state;
-    PathExecutor::RunOutcome&  m_outcomes;
+    RunOutcomePtr  m_outcomes;
 };
 
 
 InputProvider::InputProvider(
         std::vector<cps::Variable> const&  input,
         sala::ExternCodeCStd&  externals,
-        PathExecutor::RunOutcome&  outcomes
+        RunOutcomePtr  outcomes
         )
     : m_input{ input }
     , m_index{ 0U }
@@ -90,17 +90,17 @@ void  InputProvider::read_input(std::size_t const  offset)
     if ((std::size_t)m_index < m_input.size())
     {
         ASSUMPTION(m_input.at(m_index).type == cps::Variable((T)0).type);
-        m_outcomes.inputs.variables.push_back(m_input.at(m_index));
+        m_outcomes->inputs.variables.push_back(m_input.at(m_index));
         ++m_index;
     }
     else
-        m_outcomes.inputs.variables.push_back((T)0);
-    m_outcomes.inputs.path_indices.push_back(m_outcomes.path_index + 1U);   // We add 1U because this method is called before
+        m_outcomes->inputs.variables.push_back((T)0);
+    m_outcomes->inputs.path_indices.push_back(m_outcomes->path_index + 1U);   // We add 1U because this method is called before
                                                                             // Interpreter::on_basic_block_changed(). See method
                                                                             // Interpreter::do_call().
 
     sala::MemPtr const  ptr{ m_state.stack_top().parameters().front().read<sala::MemPtr>() + offset };
-    m_outcomes.inputs.variables.back().write_value_to_address(ptr);
+    m_outcomes->inputs.variables.back().write_value_to_address(ptr);
 }
 
 
@@ -108,7 +108,7 @@ struct InputFlow : public sala::InputFlowWithUpdates
 {
     using Super = sala::InputFlowWithUpdates;
 
-    InputFlow(sala::ExecState*  state, sala::ControlFlowGraph const&  cfg, PathExecutor::RunOutcome&  outcomes);
+    InputFlow(sala::ExecState*  state, sala::ControlFlowGraph const&  cfg, RunOutcomePtr const outcomes);
 
 private:
 
@@ -123,14 +123,14 @@ private:
                 type  :  1,
 
                 // Index to the vector in outcomes, depending on the type:
-                // type == 0 -> m_outcomes.black_box_functions.inputs_indices.
-                // type == 1 -> m_outcomes.black_box_functions.constants_indices.
+                // type == 0 -> m_outcomes->black_box_functions.inputs_indices.
+                // type == 1 -> m_outcomes->black_box_functions.constants_indices.
                 index : 31;
         } fields;
     };
 
     sala::ControlFlowGraph const&  m_cfg;
-    PathExecutor::RunOutcome&  m_outcomes;
+    RunOutcomePtr  m_outcomes;
 
     void start_input_flow(sala::MemPtr ptr, std::size_t count);
     void start_input_flow(std::size_t const count) { start_input_flow(parameters().front().read<sala::MemPtr>(), count);}
@@ -228,7 +228,7 @@ private:
 };
 
 
-InputFlow::InputFlow(sala::ExecState* const  state, sala::ControlFlowGraph const&  cfg, PathExecutor::RunOutcome&  outcomes)
+InputFlow::InputFlow(sala::ExecState* const  state, sala::ControlFlowGraph const&  cfg, RunOutcomePtr const outcomes)
     : sala::InputFlowWithUpdates{ state, false }
     , m_cfg{ cfg }
     , m_outcomes{ outcomes }
@@ -265,7 +265,7 @@ void InputFlow::start_input_flow(sala::MemPtr const ptr, std::size_t const count
     TaintDescriptor const  descriptor{
         .fields = {
             .type = 0U, // Tracking the input.
-            .index = (std::uint32_t)m_outcomes.inputs.variables.size() - 1U
+            .index = (std::uint32_t)m_outcomes->inputs.variables.size() - 1U
         }
     };
     start(ptr, count, descriptor.value);
@@ -280,15 +280,15 @@ void InputFlow::start_constant_flow(sala::MemPtr const dst, sala::MemPtr const s
     {
         // Beside starting the flow we also record the tracked constants.
 
-        m_outcomes.constants.path_indices.push_back(m_outcomes.path_index);
-        m_outcomes.constants.variables.push_back(cps::Variable( *(((T const*)src) + i)) );
+        m_outcomes->constants.path_indices.push_back(m_outcomes->path_index);
+        m_outcomes->constants.variables.push_back(cps::Variable( *(((T const*)src) + i)) );
 
         // And we start the actual constant tracking.
 
         TaintDescriptor const  descriptor{
             .fields = {
                 .type = 1U, // Tracking the constant.
-                .index = (std::uint32_t)m_outcomes.constants.variables.size() - 1U
+                .index = (std::uint32_t)m_outcomes->constants.variables.size() - 1U
             }
         };
         start((sala::MemPtr)(((T*)dst) + i), sizeof(T), descriptor.value);
@@ -313,32 +313,32 @@ void InputFlow::insert_black_box_function_binary(cps::Comparator const  comparat
 template<typename T>
 void InputFlow::insert_black_box_function(cps::Comparator const  comparator, double const  function_value)
 {
-    m_outcomes.black_box_functions.inputs_indices.push_back({});
-    m_outcomes.black_box_functions.constants_indices.push_back({});
+    m_outcomes->black_box_functions.inputs_indices.push_back({});
+    m_outcomes->black_box_functions.constants_indices.push_back({});
     for (auto const  raw_descriptor : read(operands().front()->start())->descriptors())
     {
         TaintDescriptor const  descriptor{ .value = raw_descriptor };
         switch (descriptor.fields.type)
         {
             case 0:
-                INVARIANT((std::size_t)descriptor.fields.index < m_outcomes.inputs.variables.size());
-                m_outcomes.black_box_functions.inputs_indices.back().push_back(descriptor.fields.index);
+                INVARIANT((std::size_t)descriptor.fields.index < m_outcomes->inputs.variables.size());
+                m_outcomes->black_box_functions.inputs_indices.back().push_back(descriptor.fields.index);
                 break;
             case 1:
-                INVARIANT((std::size_t)descriptor.fields.index < m_outcomes.constants.variables.size());
-                m_outcomes.black_box_functions.constants_indices.back().push_back(descriptor.fields.index);
+                INVARIANT((std::size_t)descriptor.fields.index < m_outcomes->constants.variables.size());
+                m_outcomes->black_box_functions.constants_indices.back().push_back(descriptor.fields.index);
                 break;
             default:
                 UNREACHABLE();
                 break;
         }
     }
-    m_outcomes.black_box_functions.comparators.push_back(comparator);
-    m_outcomes.black_box_functions.output.push_back(cps::Evaluation{
+    m_outcomes->black_box_functions.comparators.push_back(comparator);
+    m_outcomes->black_box_functions.output.push_back(cps::Evaluation{
         .function = function_value,
         .predicate = operands().front()->read<std::uint8_t>() != (std::uint8_t)0
     });
-    m_outcomes.black_box_functions.basic_blocks_hit_counts.push_back({});
+    m_outcomes->black_box_functions.basic_blocks_hit_counts.push_back({});
     {
         UpdatesHitsPtr const updates_hits = read_updates(operands().front()->start());
         if (updates_hits != nullptr)
@@ -355,13 +355,13 @@ void InputFlow::insert_black_box_function(cps::Comparator const  comparator, dou
                 basic_block_hits[node_index].insert(id_and_hits.second.begin(), id_and_hits.second.end());
             }
             for (auto const& bb_and_hits : basic_block_hits)
-                m_outcomes.black_box_functions.basic_blocks_hit_counts.back().insert({
+                m_outcomes->black_box_functions.basic_blocks_hit_counts.back().insert({
                         bb_and_hits.first,
                         (std::uint32_t)bb_and_hits.second.size()
                         });
         }
     }
-    m_outcomes.black_box_functions.path_indices.push_back(m_outcomes.path_index);
+    m_outcomes->black_box_functions.path_indices.push_back(m_outcomes->path_index);
 }
 
 
@@ -905,7 +905,7 @@ struct Interpreter final : public sala::Interpreter
             sala::ControlFlowGraph const&  cfg,
             PathTree const&  tree,
             Path const&  path,
-            PathExecutor::RunOutcome&  outcomes
+            RunOutcomePtr  outcomes
             );
 
 private:
@@ -921,7 +921,7 @@ private:
     sala::ControlFlowGraph const&  m_cfg;
     PathTree const&  m_tree;
     Path const&  m_path;
-    PathExecutor::RunOutcome&  m_outcomes;
+    RunOutcomePtr  m_outcomes;
     std::uint32_t  m_index; // Index to the m_path to be reached next in the execution.
 };
 
@@ -933,7 +933,7 @@ Interpreter::Interpreter(
         sala::ControlFlowGraph const&  cfg,
         PathTree const&  tree,
         Path const&  path,
-        PathExecutor::RunOutcome&  outcomes
+        RunOutcomePtr const  outcomes
         )
     : sala::Interpreter( state, extern_code, analyzers )
     , m_cfg{ cfg }
@@ -956,23 +956,23 @@ void Interpreter::on_basic_block_changed()
     if (state().stage() != sala::ExecState::Stage::EXECUTING)
         return;
 
-    m_outcomes.path_index = m_index;
+    m_outcomes->path_index = m_index;
     ++m_index;
 
-    sala::ControlFlowGraph::Node const& n = m_cfg.node(m_tree.graph_node_index(m_path.at(m_outcomes.path_index)));
+    sala::ControlFlowGraph::Node const& n = m_cfg.node(m_tree.graph_node_index(m_path.at(m_outcomes->path_index)));
     if (n.function != state().stack_top().function_index() || n.basic_block != ip().block())
     {
         state().set_stage(sala::ExecState::Stage::FINISHED);
         state().set_termination(
             sala::ExecState::Termination::NORMAL,
             "chickaree::Interpreter",
-            state().make_error_message("The execution has diverged from the path at index " + std::to_string(m_outcomes.path_index) + ".")
+            state().make_error_message("The execution has diverged from the path at index " + std::to_string(m_outcomes->path_index) + ".")
             );
         return;
     }
     if ((std::size_t)m_index == m_path.size())
     {
-        m_outcomes.diverged = false;
+        m_outcomes->diverged = false;
 
         state().set_stage(sala::ExecState::Stage::FINISHED);
         state().set_termination(
@@ -1016,38 +1016,37 @@ void Interpreter::do_ret()
 PathExecutor::PathExecutor(
         sala::Program const&  program,
         sala::ControlFlowGraph const&  cfg,
-        PathTree const&  tree,
-        Path const&  path
+        PathTree const&  tree
         )
     : m_program{ program }
     , m_cfg{ cfg }
     , m_tree{ tree }
-    , m_path{ path }
     , m_run_outcome{}
 {}
 
 
-PathExecutor::RunOutcome const&  PathExecutor::run(
+RunOutcomePtr  PathExecutor::run(
         std::vector<cps::Variable> const&  input,
+        Path const&  path,
         double const  timeout_seconds,
         std::size_t const  max_memory_bytes
         )
 {
     std::chrono::system_clock::time_point const  start_time_point = std::chrono::system_clock::now();
 
-    m_run_outcome = {}; // Clear data - preparation for the next execution.
+    m_run_outcome = RunOutcome::create(path.back());
 
     sala::ExecState  state{ &m_program, max_memory_bytes };
     sala::Sanitizer  sanitizer{ &state };
     sala::ExternCodeCStd  externals{ &state, &sanitizer };
     InputProvider  input_provider{ input, externals, m_run_outcome };
     InputFlow  flow{ &state, m_cfg, m_run_outcome };
-    Interpreter  interpreter{ &state, &externals, { &sanitizer, &flow }, m_cfg, m_tree, m_path, m_run_outcome };
+    Interpreter  interpreter{ &state, &externals, { &sanitizer, &flow }, m_cfg, m_tree, path, m_run_outcome };
 
     interpreter.run(timeout_seconds - std::chrono::duration<double>(std::chrono::system_clock::now() - start_time_point).count());
 
-    m_run_outcome.termination = state.termination();
-    m_run_outcome.message = state.error_message();
+    m_run_outcome->termination = state.termination();
+    m_run_outcome->message = state.error_message();
 
     return m_run_outcome;
 }

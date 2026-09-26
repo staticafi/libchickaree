@@ -43,9 +43,9 @@ struct Solver
 private:
 
     bool  update_resource_limits();
-    void  update_executed_tree_nodes(PathExecutor::RunOutcome const&  outcomes);
-    void  update_unreachable_tree_nodes(PathExecutor::RunOutcome const&  outcomes);
-    void  extend_data_tables(PathExecutor::RunOutcome const&  outcomes);
+    void  update_executed_tree_nodes(RunOutcome const&  outcomes);
+    void  update_unreachable_tree_nodes(RunOutcome const&  outcomes);
+    void  extend_data_tables(RunOutcome const&  outcomes);
     std::uint32_t  path_index_to_graph_node_index(std::uint32_t path_index) const;
 
     // Data common for all calls of run method.
@@ -59,7 +59,8 @@ private:
 
     struct PathExecutorCapture
     {
-        PathExecutorCapture(Solver* solver, PathExecutor*  executor) : solver_{ solver }, executor_{ executor } { solver_->m_path_executor = executor_; }
+        PathExecutorCapture(Solver* solver, PathExecutor*  executor) : solver_{ solver }, executor_{ executor }
+        { solver_->m_path_executor = executor_; }
         ~PathExecutorCapture() { solver_->m_path_executor = nullptr; }
         Solver*  solver_;
         PathExecutor*  executor_;

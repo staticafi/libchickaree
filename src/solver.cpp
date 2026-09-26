@@ -46,7 +46,7 @@ bool  Solver::update_resource_limits()
 }
 
 
-void  Solver::update_executed_tree_nodes(PathExecutor::RunOutcome const&  outcomes)
+void  Solver::update_executed_tree_nodes(RunOutcome const&  outcomes)
 {
     for (std::uint32_t path_index = outcomes.path_index; path_index != 0U; --path_index)
     {
@@ -58,7 +58,7 @@ void  Solver::update_executed_tree_nodes(PathExecutor::RunOutcome const&  outcom
 }
 
 
-void  Solver::update_unreachable_tree_nodes(PathExecutor::RunOutcome const&  outcomes)
+void  Solver::update_unreachable_tree_nodes(RunOutcome const&  outcomes)
 {
     for (std::size_t i = 0ULL; i != outcomes.black_box_functions.path_indices.size(); ++i)
         if (outcomes.black_box_functions.inputs_indices.at(i).empty())
@@ -92,7 +92,7 @@ void  Solver::update_unreachable_tree_nodes(PathExecutor::RunOutcome const&  out
 }
 
 
-void  Solver::extend_data_tables(PathExecutor::RunOutcome const&  outcomes)
+void  Solver::extend_data_tables(RunOutcome const&  outcomes)
 {
     for (std::size_t i = 0ULL; i != outcomes.black_box_functions.path_indices.size(); ++i)
     {
@@ -166,6 +166,9 @@ void  Solver::run(
 
     m_path.clear();
 
+    PathExecutor  executor{ m_program, m_graph, m_tree };
+    PathExecutorCapture const _ { this, &executor }; // Only to capture and release pointer to the executor.
+
     // Here starts the actual computation.
 
     while (true)
@@ -197,45 +200,42 @@ void  Solver::run(
         if (m_path.empty())
             return;
 
-        PathExecutor  executor{ m_program, m_graph, m_tree, m_path };
-        PathExecutorCapture const _ { this, &executor }; // Only to capture and release pointer to the executor.
-
         std::vector<cps::Variable>  input;
 
-        executor.run(input, m_remaining_seconds, m_remaining_bytes);
-        update_executed_tree_nodes(executor.run_outcome());
-        update_unreachable_tree_nodes(executor.run_outcome());
-        extend_data_tables(executor.run_outcome());
+        executor.run(input, m_path, m_remaining_seconds, m_remaining_bytes);
+        update_executed_tree_nodes(*executor.run_outcome());
+        update_unreachable_tree_nodes(*executor.run_outcome());
+        extend_data_tables(*executor.run_outcome());
         VISUALIZER_BREAKPOINT();
 
         cps::EvaluationCache cache;
         while (true)
         {
-            if (!executor.run_outcome().diverged)
+            if (!executor.run_outcome()->diverged)
             {
                 m_success = true;
                 VISUALIZER_BREAKPOINT();
                 return;
             }
-            if (executor.run_outcome().black_box_functions.inputs_indices.back().empty())
+            if (executor.run_outcome()->black_box_functions.inputs_indices.back().empty())
             {
-                m_tree.set_unreachable(m_path.at(executor.run_outcome().path_index));
+                m_tree.set_unreachable(m_path.at(executor.run_outcome()->path_index));
                 VISUALIZER_BREAKPOINT();
                 break;
             }
-            if (m_tree.unreachable(m_path.at(executor.run_outcome().path_index)))
+            if (m_tree.unreachable(m_path.at(executor.run_outcome()->path_index)))
             {
                 VISUALIZER_BREAKPOINT();
                 break;
             }
 
-            std::uint32_t const  tgt_path_index{ executor.run_outcome().path_index };
+            std::uint32_t const  tgt_path_index{ executor.run_outcome()->path_index };
 
             cps::Solver solver{
-                    executor.run_outcome().black_box_functions.inputs_indices,
-                    executor.run_outcome().black_box_functions.comparators,
-                    executor.run_outcome().inputs.variables,
-                    executor.run_outcome().black_box_functions.output
+                    executor.run_outcome()->black_box_functions.inputs_indices,
+                    executor.run_outcome()->black_box_functions.comparators,
+                    executor.run_outcome()->inputs.variables,
+                    executor.run_outcome()->black_box_functions.output
                     };
             while (!solver.is_finished())
             {
@@ -254,13 +254,13 @@ void  Solver::run(
                     if (!update_resource_limits())
                         return;
 
-                    executor.run(input, m_remaining_seconds, m_remaining_bytes);
-                    update_executed_tree_nodes(executor.run_outcome());
-                    update_unreachable_tree_nodes(executor.run_outcome());
-                    extend_data_tables(executor.run_outcome());
+                    executor.run(input, m_path, m_remaining_seconds, m_remaining_bytes);
+                    update_executed_tree_nodes(*executor.run_outcome());
+                    update_unreachable_tree_nodes(*executor.run_outcome());
+                    extend_data_tables(*executor.run_outcome());
                     VISUALIZER_BREAKPOINT();
 
-                    output = &executor.run_outcome().black_box_functions.output;
+                    output = &executor.run_outcome()->black_box_functions.output;
 
                     cache.insert(input, *output);
                 }
